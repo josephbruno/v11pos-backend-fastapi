@@ -1,0 +1,207 @@
+{
+  "info": {
+    "name": "Restaurant POS - Authentication",
+    "description": "Authentication endpoints for Restaurant POS API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "username",
+              "value": "manager@restaurant.com",
+              "type": "text"
+            },
+            {
+              "key": "password",
+              "value": "Manager123!",
+              "type": "text"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/auth/login",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "auth", "login"]
+        },
+        "description": "Login with email and password to receive access token"
+      },
+      "response": []
+    },
+    {
+      "name": "Login - Admin",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "username",
+              "value": "admin@restaurant.com",
+              "type": "text"
+            },
+            {
+              "key": "password",
+              "value": "Admin123!",
+              "type": "text"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/auth/login",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "auth", "login"]
+        },
+        "description": "Login as admin user"
+      },
+      "response": []
+    },
+    {
+      "name": "Login - Cashier",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "username",
+              "value": "cashier@restaurant.com",
+              "type": "text"
+            },
+            {
+              "key": "password",
+              "value": "Cashier123!",
+              "type": "text"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/auth/login",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "auth", "login"]
+        },
+        "description": "Login as cashier user"
+      },
+      "response": []
+    },
+    {
+      "name": "Login - Staff",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "username",
+              "value": "staff@restaurant.com",
+              "type": "text"
+            },
+            {
+              "key": "password",
+              "value": "Staff123!",
+              "type": "text"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/auth/login",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "auth", "login"]
+        },
+        "description": "Login as staff user"
+      },
+      "response": []
+    },
+    {
+      "name": "Get Current User",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "description": "JWT token from login"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/auth/me",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "auth", "me"]
+        },
+        "description": "Get current authenticated user information"
+      },
+      "response": []
+    },
+    {
+      "name": "Test Protected Endpoint - Products",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}",
+            "description": "JWT token from login"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/products/?page=1&page_size=10",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "products", ""],
+          "query": [
+            {
+              "key": "page",
+              "value": "1"
+            },
+            {
+              "key": "page_size",
+              "value": "10"
+            }
+          ]
+        },
+        "description": "Test authentication by fetching products with pagination"
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

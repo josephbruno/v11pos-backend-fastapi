@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Category Images Gallery - Restaurant POS</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+        
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        
+        .stats {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 10px 20px;
+        }
+        
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .stat-label {
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+        
+        .category-card {
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .category-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+        }
+        
+        .image-container {
+            width: 100%;
+            height: 250px;
+            overflow: hidden;
+            background: linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%);
+            position: relative;
+        }
+        
+        .category-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .no-image {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            font-size: 4em;
+            color: #ccc;
+        }
+        
+        .card-content {
+            padding: 20px;
+        }
+        
+        .category-name {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .category-description {
+            color: #666;
+            margin-bottom: 15px;
+            line-height: 1.5;
+        }
+        
+        .category-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9em;
+            color: #999;
+        }
+        
+        .badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+        
+        .badge-active {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .badge-inactive {
+            background: #f44336;
+            color: white;
+        }
+        
+        .image-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(102, 126, 234, 0.9);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: white;
+            font-size: 1.5em;
+        }
+        
+        .error {
+            background: #f44336;
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .refresh-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+        }
+        
+        .refresh-btn:hover {
+            background: #764ba2;
+            transform: scale(1.05);
+        }
+        
+        .section-title {
+            color: white;
+            font-size: 1.8em;
+            margin: 30px 0 20px 0;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🍽️ Restaurant POS</h1>
+            <p>Category Image Gallery</p>
+        </header>
+        
+        <div class="stats" id="stats">
+            <div class="stat-item">
+                <div class="stat-number" id="totalCategories">-</div>
+                <div class="stat-label">Total Categories</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="withImages">-</div>
+                <div class="stat-label">With Images</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="withoutImages">-</div>
+                <div class="stat-label">Without Images</div>
+            </div>
+        </div>
+        
+        <div id="loading" class="loading">Loading categories...</div>
+        <div id="error" class="error" style="display: none;"></div>
+        
+        <div id="withImagesSection"></div>
+        <div id="withoutImagesSection"></div>
+        
+        <button class="refresh-btn" onclick="loadCategories()">🔄 Refresh</button>
+    </div>
+    
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        
+        async function loadCategories() {
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            
+            loading.style.display = 'block';
+            error.style.display = 'none';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/v1/categories/?page_size=100`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                const categories = result.data;
+                
+                // Separate categories with and without images
+                const withImages = categories.filter(cat => cat.image);
+                const withoutImages = categories.filter(cat => !cat.image);
+                
+                // Update stats
+                document.getElementById('totalCategories').textContent = categories.length;
+                document.getElementById('withImages').textContent = withImages.length;
+                document.getElementById('withoutImages').textContent = withoutImages.length;
+                
+                // Render categories with images
+                const withImagesSection = document.getElementById('withImagesSection');
+                if (withImages.length > 0) {
+                    withImagesSection.innerHTML = `
+                        <h2 class="section-title">📸 Categories with Images (${withImages.length})</h2>
+                        <div class="gallery">
+                            ${withImages.map(cat => createCategoryCard(cat, true)).join('')}
+                        </div>
+                    `;
+                } else {
+                    withImagesSection.innerHTML = '';
+                }
+                
+                // Render categories without images
+                const withoutImagesSection = document.getElementById('withoutImagesSection');
+                if (withoutImages.length > 0) {
+                    withoutImagesSection.innerHTML = `
+                        <h2 class="section-title">📝 Categories without Images (${withoutImages.length})</h2>
+                        <div class="gallery">
+                            ${withoutImages.map(cat => createCategoryCard(cat, false)).join('')}
+                        </div>
+                    `;
+                } else {
+                    withoutImagesSection.innerHTML = '';
+                }
+                
+                loading.style.display = 'none';
+                
+            } catch (err) {
+                console.error('Error loading categories:', err);
+                error.textContent = `Error loading categories: ${err.message}`;
+                error.style.display = 'block';
+                loading.style.display = 'none';
+            }
+        }
+        
+        function createCategoryCard(category, hasImage) {
+            const imageUrl = hasImage ? `${API_BASE}/uploads/${category.image}` : '';
+            const statusBadge = category.active 
+                ? '<span class="badge badge-active">Active</span>' 
+                : '<span class="badge badge-inactive">Inactive</span>';
+            
+            return `
+                <div class="category-card">
+                    <div class="image-container">
+                        ${hasImage 
+                            ? `
+                                <img src="${imageUrl}" 
+                                     alt="${category.name}" 
+                                     class="category-image"
+                                     onerror="this.parentElement.innerHTML='<div class=\\'no-image\\'>❌</div>'">
+                                <div class="image-badge">✓ Image</div>
+                              `
+                            : '<div class="no-image">📷</div>'
+                        }
+                    </div>
+                    <div class="card-content">
+                        <div class="category-name">${category.name}</div>
+                        <div class="category-description">
+                            ${category.description || 'No description available'}
+                        </div>
+                        <div class="category-meta">
+                            <span>Order: ${category.sort_order}</span>
+                            ${statusBadge}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Load categories on page load
+        loadCategories();
+    </script>
+</body>
+</html>

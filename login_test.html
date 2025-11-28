@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Restaurant POS - Login Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 900px;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+        }
+
+        .login-section, .info-section {
+            padding: 40px;
+        }
+
+        .login-section {
+            border-right: 1px solid #e0e0e0;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .quick-select {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .quick-btn {
+            padding: 10px;
+            background: #f5f5f5;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 13px;
+        }
+
+        .quick-btn:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .response {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            border-left: 4px solid #667eea;
+            font-size: 13px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .response.error {
+            background: #fff5f5;
+            border-left-color: #e53e3e;
+            color: #c53030;
+        }
+
+        .response.success {
+            background: #f0fff4;
+            border-left-color: #38a169;
+            color: #2f855a;
+        }
+
+        .info-section h2 {
+            color: #333;
+            font-size: 20px;
+            margin-bottom: 20px;
+        }
+
+        .account-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+        }
+
+        .account-card h3 {
+            color: #667eea;
+            font-size: 14px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .account-card .role-badge {
+            background: #667eea;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .account-card p {
+            font-size: 13px;
+            color: #666;
+            margin: 4px 0;
+        }
+
+        .account-card code {
+            background: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12px;
+            color: #667eea;
+        }
+
+        .features {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .features h3 {
+            font-size: 14px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .features ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .features li {
+            padding: 6px 0;
+            color: #666;
+            font-size: 13px;
+        }
+
+        .features li:before {
+            content: "✓ ";
+            color: #38a169;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+
+        pre {
+            background: #1a1a1a;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+            
+            .login-section {
+                border-right: none;
+                border-bottom: 1px solid #e0e0e0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🍽️ Restaurant POS - Login API Test</h1>
+            <p>Test authentication endpoints and explore user roles</p>
+        </div>
+
+        <div class="content">
+            <div class="login-section">
+                <h2 style="margin-bottom: 20px; color: #333;">Login Test</h2>
+                
+                <div class="quick-select">
+                    <button class="quick-btn" onclick="fillLogin('admin')">👑 Admin</button>
+                    <button class="quick-btn" onclick="fillLogin('manager')">👨‍💼 Manager</button>
+                    <button class="quick-btn" onclick="fillLogin('cashier')">💰 Cashier</button>
+                    <button class="quick-btn" onclick="fillLogin('staff')">👥 Staff</button>
+                </div>
+
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" placeholder="Enter email" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" placeholder="Enter password" required>
+                    </div>
+
+                    <button type="submit" class="btn" id="loginBtn">
+                        Login
+                    </button>
+                </form>
+
+                <div id="response"></div>
+            </div>
+
+            <div class="info-section">
+                <h2>Test Accounts</h2>
+
+                <div class="account-card">
+                    <h3>
+                        Admin Account
+                        <span class="role-badge">ADMIN</span>
+                    </h3>
+                    <p>Email: <code>admin@restaurant.com</code></p>
+                    <p>Password: <code>Admin123!</code></p>
+                    <p style="margin-top: 8px; font-size: 12px;">Full system access and administration</p>
+                </div>
+
+                <div class="account-card">
+                    <h3>
+                        Manager Account
+                        <span class="role-badge">MANAGER</span>
+                    </h3>
+                    <p>Email: <code>manager@restaurant.com</code></p>
+                    <p>Password: <code>Manager123!</code></p>
+                    <p style="margin-top: 8px; font-size: 12px;">Management features and reports</p>
+                </div>
+
+                <div class="account-card">
+                    <h3>
+                        Cashier Account
+                        <span class="role-badge">CASHIER</span>
+                    </h3>
+                    <p>Email: <code>cashier@restaurant.com</code></p>
+                    <p>Password: <code>Cashier123!</code></p>
+                    <p style="margin-top: 8px; font-size: 12px;">Point of sale operations</p>
+                </div>
+
+                <div class="account-card">
+                    <h3>
+                        Staff Account
+                        <span class="role-badge">STAFF</span>
+                    </h3>
+                    <p>Email: <code>staff@restaurant.com</code></p>
+                    <p>Password: <code>Staff123!</code></p>
+                    <p style="margin-top: 8px; font-size: 12px;">Order and customer service</p>
+                </div>
+
+                <div class="features">
+                    <h3>API Features</h3>
+                    <ul>
+                        <li>JWT Token Authentication</li>
+                        <li>24-hour Token Validity</li>
+                        <li>Role-based Access Control</li>
+                        <li>Secure Password Hashing</li>
+                        <li>User Session Management</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8000';
+        
+        const accounts = {
+            admin: {
+                email: 'admin@restaurant.com',
+                password: 'Admin123!'
+            },
+            manager: {
+                email: 'manager@restaurant.com',
+                password: 'Manager123!'
+            },
+            cashier: {
+                email: 'cashier@restaurant.com',
+                password: 'Cashier123!'
+            },
+            staff: {
+                email: 'staff@restaurant.com',
+                password: 'Staff123!'
+            }
+        };
+
+        function fillLogin(role) {
+            const account = accounts[role];
+            document.getElementById('email').value = account.email;
+            document.getElementById('password').value = account.password;
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const responseDiv = document.getElementById('response');
+            const loginBtn = document.getElementById('loginBtn');
+            
+            // Show loading state
+            loginBtn.disabled = true;
+            loginBtn.innerHTML = '<span class="spinner"></span> Logging in...';
+            responseDiv.innerHTML = '';
+            
+            try {
+                // OAuth2 expects form data
+                const formData = new URLSearchParams();
+                formData.append('username', email);
+                formData.append('password', password);
+
+                const response = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Login failed');
+                }
+
+                // Success
+                localStorage.setItem('access_token', data.access_token);
+                localStorage.setItem('user', JSON.stringify(data.user));
+
+                responseDiv.className = 'response success';
+                responseDiv.innerHTML = `
+                    <strong>✅ Login Successful!</strong><br><br>
+                    <strong>User:</strong> ${data.user.name}<br>
+                    <strong>Role:</strong> ${data.user.role}<br>
+                    <strong>Email:</strong> ${data.user.email}<br>
+                    <strong>Token:</strong> ${data.access_token.substring(0, 30)}...<br>
+                    <strong>Expires in:</strong> ${data.expires_in} minutes<br><br>
+                    <details>
+                        <summary style="cursor: pointer; font-weight: 600;">View Full Response</summary>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    </details>
+                    <br>
+                    <strong>Token stored in localStorage!</strong>
+                `;
+
+            } catch (error) {
+                responseDiv.className = 'response error';
+                responseDiv.innerHTML = `
+                    <strong>❌ Login Failed</strong><br><br>
+                    <strong>Error:</strong> ${error.message}<br><br>
+                    Please check your credentials and try again.
+                `;
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.innerHTML = 'Login';
+            }
+        });
+
+        // Auto-fill admin on load
+        window.addEventListener('load', () => {
+            fillLogin('manager');
+        });
+    </script>
+</body>
+</html>
