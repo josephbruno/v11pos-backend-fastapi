@@ -1,4 +1,9 @@
-# Restaurant POS - Quick Start Guide
+# Restaurant POS - FastAPI Backend
+
+## 🌐 Production API
+**Live API:** https://apipos.v11tech.com/
+- **API Docs:** https://apipos.v11tech.com/docs
+- **ReDoc:** https://apipos.v11tech.com/redoc
 
 ## 🚀 One Command Setup with Docker
 
@@ -204,15 +209,36 @@ docker-compose up --build -d
 
 ---
 
-## 🌐 Production Notes
+## 🌐 Production Deployment
 
-For production deployment:
+**Live Production Server:** https://apipos.v11tech.com/
 
-1. Change passwords in `.env` or `docker-compose.yml`
-2. Set `--reload` to false in `Dockerfile` CMD
-3. Use proper secrets management
-4. Add SSL/TLS certificates
-5. Configure proper backup strategy
+### Quick Deploy to Server
+
+```bash
+# One-line deployment (on server as root)
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/josephbruno/v11pos-backend-fastapi/master/deploy.sh)"
+```
+
+### Manual Deployment
+
+See comprehensive guides:
+- **[QUICK_DEPLOY.md](QUICK_DEPLOY.md)** - Quick commands reference
+- **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)** - Complete step-by-step guide
+
+### Key Features in Production
+- ✅ SSL/HTTPS with Let's Encrypt
+- ✅ Nginx reverse proxy
+- ✅ Multi-language support (en, es, fr, ar)
+- ✅ Sample images included
+- ✅ Database migrations automated
+- ✅ Docker containerized
+- ✅ API documentation available
+
+### Production Scripts
+- `deploy.sh` - Automated deployment
+- `download_sample_images.sh` - Download sample images
+- `test_production_api.sh` - Test all endpoints
 
 ---
 
