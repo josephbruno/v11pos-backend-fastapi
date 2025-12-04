@@ -36,7 +36,7 @@ ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png",".webp"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 WEBP_QUALITY = 85  # WebP quality (0-100)
 TARGET_IMAGE_SIZE = (600, 400)  # Category images: 600x400px
-MAX_OUTPUT_FILE_SIZE = 200 * 1024  # Max output: 200KB
+MAX_OUTPUT_FILE_SIZE = 500 * 1024  # Max output: 500KB
 
 
 def save_upload_file(upload_file: UploadFile, convert_to_webp: bool = True) -> str:
