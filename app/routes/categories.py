@@ -34,7 +34,7 @@ UPLOAD_DIR = Path("uploads/categories")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png",".webp"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
-WEBP_QUALITY = 85  # WebP quality (0-100)
+WEBP_QUALITY = 95  # WebP quality (0-100)
 TARGET_IMAGE_SIZE = (600, 400)  # Category images: 600x400px
 MAX_OUTPUT_FILE_SIZE = 500 * 1024  # Max output: 500KB
 
