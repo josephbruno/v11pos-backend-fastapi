@@ -81,39 +81,33 @@ def save_upload_file(upload_file: UploadFile, convert_to_webp: bool = True) -> s
             # Convert to WebP for better compression and quality
             image = Image.open(io.BytesIO(image_data))
             
-            # Resize image to target size (800x800 for products)
-            # Use LANCZOS for high-quality downsampling
-            image.thumbnail(TARGET_IMAGE_SIZE, Image.Resampling.LANCZOS)
+            # Convert to RGB first if needed
+            if image.mode in ('RGBA', 'LA', 'P'):
+                background = Image.new('RGB', image.size, (255, 255, 255))
+                if image.mode == 'P':
+                    image = image.convert('RGBA')
+                background.paste(image, mask=image.split()[-1] if image.mode in ('RGBA', 'LA') else None)
+                image = background
+            elif image.mode != 'RGB':
+                image = image.convert('RGB')
             
-            # If image is smaller than target, pad it to exact size
-            if image.size != TARGET_IMAGE_SIZE:
-                new_image = Image.new('RGB', TARGET_IMAGE_SIZE, (255, 255, 255))
-                # Center the image
-                x = (TARGET_IMAGE_SIZE[0] - image.size[0]) // 2
-                y = (TARGET_IMAGE_SIZE[1] - image.size[1]) // 2
-                
-                # Convert to RGB if needed before pasting
-                if image.mode in ('RGBA', 'LA', 'P'):
-                    background = Image.new('RGB', image.size, (255, 255, 255))
-                    if image.mode == 'P':
-                        image = image.convert('RGBA')
-                    background.paste(image, mask=image.split()[-1] if image.mode in ('RGBA', 'LA') else None)
-                    image = background
-                elif image.mode != 'RGB':
-                    image = image.convert('RGB')
-                
-                new_image.paste(image, (x, y))
-                image = new_image
-            else:
-                # Convert RGBA to RGB if necessary
-                if image.mode in ('RGBA', 'LA', 'P'):
-                    background = Image.new('RGB', image.size, (255, 255, 255))
-                    if image.mode == 'P':
-                        image = image.convert('RGBA')
-                    background.paste(image, mask=image.split()[-1] if image.mode in ('RGBA', 'LA') else None)
-                    image = background
-                elif image.mode != 'RGB':
-                    image = image.convert('RGB')
+            # Calculate aspect ratios
+            img_aspect = image.width / image.height
+            target_aspect = TARGET_IMAGE_SIZE[0] / TARGET_IMAGE_SIZE[1]
+            
+            if img_aspect > target_aspect:
+                # Image is wider - crop sides (center crop)
+                new_width = int(image.height * target_aspect)
+                left = (image.width - new_width) // 2
+                image = image.crop((left, 0, left + new_width, image.height))
+            elif img_aspect < target_aspect:
+                # Image is taller - crop top/bottom (center crop)
+                new_height = int(image.width / target_aspect)
+                top = (image.height - new_height) // 2
+                image = image.crop((0, top, image.width, top + new_height))
+            
+            # Now resize to exact target size (stretch/shrink to fill completely)
+            image = image.resize(TARGET_IMAGE_SIZE, Image.Resampling.LANCZOS)
             
             # Generate unique filename with .webp extension
             base_name = Path(upload_file.filename).stem
