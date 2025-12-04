@@ -125,6 +125,7 @@ def save_upload_file(upload_file: UploadFile, convert_to_webp: bool = True) -> s
             
             # Save as WebP with quality adjustment to meet file size requirement
             quality = WEBP_QUALITY
+            final_size = 0
             for attempt in range(5):  # Try up to 5 times with decreasing quality
                 buffer = io.BytesIO()
                 image.save(buffer, 'WEBP', quality=quality, method=6)
@@ -133,10 +134,17 @@ def save_upload_file(upload_file: UploadFile, convert_to_webp: bool = True) -> s
                     # File size is acceptable or quality is too low to reduce further
                     with open(file_path, 'wb') as f:
                         f.write(buffer.getvalue())
+                    final_size = buffer.tell()
                     break
                 
                 # Reduce quality for next attempt
                 quality -= 10
+            
+            # Set full permissions (read, write, execute for all users)
+            os.chmod(file_path, 0o777)
+            
+            # Log the saved image size
+            print(f"Image saved: {file_path.name}, Size: {final_size / 1024:.2f} KB ({final_size} bytes)")
             
         else:
             # Save original format
@@ -150,6 +158,13 @@ def save_upload_file(upload_file: UploadFile, convert_to_webp: bool = True) -> s
             
             with open(file_path, "wb") as buffer:
                 buffer.write(image_data)
+            
+            # Set full permissions (read, write, execute for all users)
+            os.chmod(file_path, 0o777)
+            
+            # Log the saved image size
+            file_size = len(image_data)
+            print(f"Image saved: {file_path.name}, Size: {file_size / 1024:.2f} KB ({file_size} bytes)")
         
         # Return path in format: /uploads/products/filename.webp (matching categories format)
         return f"/uploads/products/{file_path.name}"
