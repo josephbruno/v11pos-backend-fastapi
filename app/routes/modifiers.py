@@ -35,7 +35,7 @@ def list_modifiers(
     db: Session = Depends(get_db)
 ):
     """
-    List all modifiers with pagination and optional filtering
+    List all modifiers with full data including options, with pagination and optional filtering
     """
     query = db.query(Modifier)
     
@@ -46,17 +46,63 @@ def list_modifiers(
     pagination = PaginationParams(page=page, page_size=page_size)
     modifiers, pagination_meta = paginate_query(query, pagination)
     
-    # Apply translations
+    # Get user's language for translations
     language = extract_language_from_header(request)
-    translated_modifiers = translate_entity_list(
-        db=db,
-        entities=modifiers,
-        language_code=language,
-        entity_type="modifier",
-        translatable_fields=["name"]
-    )
     
-    return create_paginated_response(translated_modifiers, pagination_meta, "Modifiers retrieved successfully")
+    # Build full modifier data with options
+    modifiers_list = []
+    for modifier in modifiers:
+        # Translate modifier name
+        translated_name = get_translated_field(
+            db=db,
+            entity_type="modifier",
+            entity_id=modifier.id,
+            field_name="name",
+            language_code=language,
+            default_value=modifier.name
+        )
+        
+        # Translate modifier options
+        translated_options = []
+        for option in modifier.options:
+            translated_option_name = get_translated_field(
+                db=db,
+                entity_type="modifier_option",
+                entity_id=option.id,
+                field_name="name",
+                language_code=language,
+                default_value=option.name
+            )
+            
+            translated_options.append({
+                "id": option.id,
+                "name": translated_option_name,
+                "price": option.price,
+                "available": option.available,
+                "sort_order": option.sort_order,
+                "created_at": option.created_at,
+                "updated_at": option.updated_at
+            })
+        
+        modifiers_list.append({
+            "id": modifier.id,
+            "name": translated_name,
+            "type": modifier.type,
+            "category": modifier.category,
+            "required": modifier.required,
+            "min_selections": modifier.min_selections,
+            "max_selections": modifier.max_selections,
+            "options": translated_options,
+            "created_at": modifier.created_at,
+            "updated_at": modifier.updated_at
+        })
+    
+    return {
+        "status": "success",
+        "message": "Modifiers retrieved successfully",
+        "data": modifiers_list,
+        "pagination": pagination_meta.model_dump()
+    }
 
 
 @router.get("/{modifier_id}", response_model=ModifierResponse)
