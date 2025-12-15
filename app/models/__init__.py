@@ -1,4 +1,8 @@
 # Models package initialization
+from app.models.restaurant import (
+    Restaurant, RestaurantOwner, Subscription, SubscriptionPlan,
+    Invoice, PlatformAdmin, RestaurantInvitation
+)
 from app.models.user import User, ShiftSchedule, StaffPerformance
 from app.models.product import (
     Category, Product, Modifier, ModifierOption,
@@ -16,6 +20,8 @@ from app.models.order import (
 from app.models.settings import TaxRule, Settings
 
 __all__ = [
+    "Restaurant", "RestaurantOwner", "Subscription", "SubscriptionPlan",
+    "Invoice", "PlatformAdmin", "RestaurantInvitation",
     "User", "ShiftSchedule", "StaffPerformance",
     "Category", "Product", "Modifier", "ModifierOption",
     "ProductModifier", "ComboProduct", "ComboItem",

@@ -9,7 +9,9 @@ import random
 
 from app.database import SessionLocal, engine
 from app.models.user import User, ShiftSchedule, StaffPerformance
+from app.models.restaurant import Restaurant
 from app.models.product import Category, Product, Modifier, ModifierOption, ComboProduct, ComboItem
+from app.enums import UserRole
 from app.models.customer import Customer, CustomerTag, LoyaltyRule, LoyaltyTransaction
 from app.models.order import Order, OrderItem, OrderItemModifier, OrderStatusHistory, KOTGroup
 from app.models.qr import QRTable, QRSession, QRSettings
@@ -53,6 +55,7 @@ def clear_existing_data(db: Session):
     db.query(QRSettings).delete()
     
     db.query(TaxRule).delete()
+    db.query(Restaurant).delete()
     # Keep Settings as it might have important config
     
     # Keep Users - we need admin
@@ -61,42 +64,75 @@ def clear_existing_data(db: Session):
     print("✓ Existing data cleared")
 
 
-def seed_users(db: Session):
+def seed_restaurant(db: Session):
+    """Seed default restaurant"""
+    print("\nSeeding restaurant...")
+    
+    restaurant = Restaurant(
+        name="Tasty Bites",
+        slug="tasty-bites",
+        business_name="Tasty Bites Inc.",
+        email="contact@tastybites.com",
+        phone="555-0123",
+        subscription_plan="enterprise",
+        is_active=True
+    )
+    db.add(restaurant)
+    db.commit()
+    db.refresh(restaurant)
+    print(f"✓ Created restaurant: {restaurant.name} ({restaurant.id})")
+    return restaurant
+
+
+def seed_users(db: Session, restaurant_id: str):
     """Seed users"""
     print("\nSeeding users...")
     
     users_data = [
         {
+            "name": "Super Admin",
+            "email": "superadmin@platform.com",
+            "password": pwd_context.hash("SuperAdmin123!"),
+            "phone": "0000000000",
+            "role": UserRole.SUPER_ADMIN,
+            "status": "active",
+            "restaurant_id": None  # Platform level
+        },
+        {
             "name": "Manager John",
             "email": "manager@restaurant.com",
             "password": pwd_context.hash("Manager123!"),
             "phone": "1234567891",
-            "role": "manager",
-            "status": "active"
+            "role": UserRole.MANAGER,
+            "status": "active",
+            "restaurant_id": restaurant_id
         },
         {
             "name": "Cashier Sarah",
             "email": "cashier@restaurant.com",
             "password": pwd_context.hash("Cashier123!"),
             "phone": "1234567892",
-            "role": "cashier",
-            "status": "active"
+            "role": UserRole.CASHIER,
+            "status": "active",
+            "restaurant_id": restaurant_id
         },
         {
             "name": "Staff Mike",
             "email": "staff@restaurant.com",
             "password": pwd_context.hash("Staff123!"),
             "phone": "1234567893",
-            "role": "staff",
-            "status": "active"
+            "role": UserRole.STAFF,
+            "status": "active",
+            "restaurant_id": restaurant_id
         },
         {
             "name": "Cashier David",
             "email": "cashier2@restaurant.com",
             "password": pwd_context.hash("Cashier123!"),
             "phone": "1234567894",
-            "role": "cashier",
-            "status": "active"
+            "role": UserRole.CASHIER,
+            "status": "active",
+            "restaurant_id": restaurant_id
         }
     ]
     
@@ -105,8 +141,12 @@ def seed_users(db: Session):
         # Check if user exists
         existing = db.query(User).filter(User.email == user_data["email"]).first()
         if existing:
+            # Update restaurant_id if needed
+            if existing.restaurant_id != user_data["restaurant_id"]:
+                existing.restaurant_id = user_data["restaurant_id"]
+                db.add(existing)
             created_users.append(existing)
-            print(f"  • User {user_data['email']} already exists, using existing")
+            print(f"  • User {user_data['email']} already exists, updated")
         else:
             user = User(**user_data)
             db.add(user)
@@ -119,7 +159,7 @@ def seed_users(db: Session):
     return created_users
 
 
-def seed_shift_schedules(db: Session, users):
+def seed_shift_schedules(db: Session, users, restaurant_id):
     """Seed shift schedules"""
     print("\nSeeding shift schedules...")
     
@@ -128,15 +168,19 @@ def seed_shift_schedules(db: Session, users):
     
     # Position mapping based on user role
     positions = {
-        "manager": "Floor Manager",
-        "cashier": "Cashier",
-        "staff": "Server"
+        UserRole.MANAGER: "Floor Manager",
+        UserRole.CASHIER: "Cashier",
+        UserRole.STAFF: "Server"
     }
     
-    for user in users[:3]:  # First 3 users
+    # Filter users who belong to this restaurant
+    restaurant_users = [u for u in users if u.restaurant_id == restaurant_id]
+    
+    for user in restaurant_users[:3]:  # First 3 users
         position = positions.get(user.role, "Staff")
         for day in days:
             shift = ShiftSchedule(
+                restaurant_id=restaurant_id,
                 user_id=user.id,
                 day=day,
                 start_time="09:00",
@@ -152,7 +196,7 @@ def seed_shift_schedules(db: Session, users):
     return shifts
 
 
-def seed_categories(db: Session):
+def seed_categories(db: Session, restaurant_id):
     """Seed product categories"""
     print("\nSeeding categories...")
     
@@ -169,7 +213,7 @@ def seed_categories(db: Session):
     
     categories = []
     for cat_data in categories_data:
-        category = Category(**cat_data, active=True)
+        category = Category(**cat_data, active=True, restaurant_id=restaurant_id)
         db.add(category)
         categories.append(category)
     
@@ -178,7 +222,7 @@ def seed_categories(db: Session):
     return categories
 
 
-def seed_products(db: Session, categories):
+def seed_products(db: Session, categories, restaurant_id):
     """Seed products"""
     print("\nSeeding products...")
     
@@ -238,6 +282,7 @@ def seed_products(db: Session, categories):
             product = Product(
                 **prod_data,
                 category_id=category.id,
+                restaurant_id=restaurant_id,
                 slug=prod_data["name"].lower().replace(" ", "-"),
                 stock=100,
                 cost=int(prod_data["price"] * 0.6)  # Cost is 60% of price
@@ -250,7 +295,7 @@ def seed_products(db: Session, categories):
     return products
 
 
-def seed_modifiers(db: Session):
+def seed_modifiers(db: Session, restaurant_id):
     """Seed modifiers and options"""
     print("\nSeeding modifiers...")
     
@@ -308,7 +353,7 @@ def seed_modifiers(db: Session):
     modifiers = []
     for mod_data in modifiers_data:
         options_data = mod_data.pop("options")
-        modifier = Modifier(**mod_data)
+        modifier = Modifier(**mod_data, restaurant_id=restaurant_id)
         db.add(modifier)
         db.flush()
         
@@ -316,6 +361,7 @@ def seed_modifiers(db: Session):
             option = ModifierOption(
                 **opt_data,
                 modifier_id=modifier.id,
+                restaurant_id=restaurant_id,
                 sort_order=idx
             )
             db.add(option)
@@ -327,7 +373,7 @@ def seed_modifiers(db: Session):
     return modifiers
 
 
-def seed_customers(db: Session):
+def seed_customers(db: Session, restaurant_id):
     """Seed customers"""
     print("\nSeeding customers...")
     
@@ -347,6 +393,7 @@ def seed_customers(db: Session):
         customer = Customer(
             **cust_data,
             address=f"{random.randint(100, 999)} Main St",
+            restaurant_id=restaurant_id,
             total_spent=cust_data["loyalty_points"] * 100,  # $1 per point
             visit_count=random.randint(1, 20)
         )
@@ -358,7 +405,7 @@ def seed_customers(db: Session):
     return customers
 
 
-def seed_loyalty_rules(db: Session):
+def seed_loyalty_rules(db: Session, restaurant_id):
     """Seed loyalty rules"""
     print("\nSeeding loyalty rules...")
     
@@ -399,7 +446,7 @@ def seed_loyalty_rules(db: Session):
     
     rules = []
     for rule_data in rules_data:
-        rule = LoyaltyRule(**rule_data)
+        rule = LoyaltyRule(**rule_data, restaurant_id=restaurant_id)
         db.add(rule)
         rules.append(rule)
     
@@ -408,7 +455,7 @@ def seed_loyalty_rules(db: Session):
     return rules
 
 
-def seed_qr_tables(db: Session):
+def seed_qr_tables(db: Session, restaurant_id):
     """Seed QR tables"""
     print("\nSeeding QR tables...")
     
@@ -434,7 +481,8 @@ def seed_qr_tables(db: Session):
             location=data["location"],
             capacity=data["capacity"],
             is_active=True,
-            is_occupied=False
+            is_occupied=False,
+            restaurant_id=restaurant_id
         )
         db.add(table)
         tables.append(table)
@@ -444,7 +492,7 @@ def seed_qr_tables(db: Session):
     return tables
 
 
-def seed_tax_rules(db: Session):
+def seed_tax_rules(db: Session, restaurant_id):
     """Seed tax rules"""
     print("\nSeeding tax rules...")
     
@@ -471,7 +519,7 @@ def seed_tax_rules(db: Session):
     
     rules = []
     for rule_data in rules_data:
-        rule = TaxRule(**rule_data)
+        rule = TaxRule(**rule_data, restaurant_id=restaurant_id)
         db.add(rule)
         rules.append(rule)
     
@@ -480,7 +528,7 @@ def seed_tax_rules(db: Session):
     return rules
 
 
-def seed_combo_products(db: Session, categories, products):
+def seed_combo_products(db: Session, categories, products, restaurant_id):
     """Seed combo products"""
     print("\nSeeding combo products...")
     
@@ -513,7 +561,8 @@ def seed_combo_products(db: Session, categories, products):
             **combo_data,
             slug=combo_data["name"].lower().replace(" ", "-"),
             available=True,
-            featured=True
+            featured=True,
+            restaurant_id=restaurant_id
         )
         db.add(combo)
         combos.append(combo)
@@ -523,7 +572,7 @@ def seed_combo_products(db: Session, categories, products):
     return combos
 
 
-def seed_orders(db: Session, customers, products, users):
+def seed_orders(db: Session, customers, products, users, restaurant_id):
     """Seed sample orders"""
     print("\nSeeding orders...")
     
@@ -551,7 +600,8 @@ def seed_orders(db: Session, customers, products, users):
             subtotal=0,
             tax_total=0,
             total=0,
-            created_at=order_date
+            created_at=order_date,
+            restaurant_id=restaurant_id
         )
         db.add(order)
         db.flush()
@@ -566,6 +616,7 @@ def seed_orders(db: Session, customers, products, users):
             item_price = product.price
             
             order_item = OrderItem(
+                restaurant_id=restaurant_id,
                 order_id=order.id,
                 product_id=product.id,
                 product_name=product.name,
@@ -610,27 +661,28 @@ def main():
         clear_existing_data(db)
         
         # Seed data in order
-        users = seed_users(db)
-        seed_shift_schedules(db, users)
-        categories = seed_categories(db)
-        products = seed_products(db, categories)
-        modifiers = seed_modifiers(db)
-        customers = seed_customers(db)
-        seed_loyalty_rules(db)
-        seed_qr_tables(db)
-        seed_tax_rules(db)
-        seed_combo_products(db, categories, products)
-        seed_orders(db, customers, products, users)
+        restaurant = seed_restaurant(db)
+        users = seed_users(db, restaurant.id)
+        seed_shift_schedules(db, users, restaurant.id)
+        categories = seed_categories(db, restaurant.id)
+        products = seed_products(db, categories, restaurant.id)
+        modifiers = seed_modifiers(db, restaurant.id)
+        customers = seed_customers(db, restaurant.id)
+        seed_loyalty_rules(db, restaurant.id)
+        seed_qr_tables(db, restaurant.id)
+        seed_tax_rules(db, restaurant.id)
+        seed_combo_products(db, categories, products, restaurant.id)
+        seed_orders(db, customers, products, users, restaurant.id)
         
         print("\n" + "=" * 60)
         print("✅ Sample data seeding completed successfully!")
         print("=" * 60)
         print("\nSample Login Credentials:")
-        print("  Admin:     admin@restaurant.com / Admin123!")
-        print("  Manager:   manager@restaurant.com / Manager123!")
-        print("  Cashier1:  cashier@restaurant.com / Cashier123!")
-        print("  Staff:     staff@restaurant.com / Staff123!")
-        print("  Cashier2:  cashier2@restaurant.com / Cashier123!")
+        print("  Super Admin: superadmin@platform.com / SuperAdmin123!")
+        print("  Manager:     manager@restaurant.com / Manager123!")
+        print("  Cashier1:    cashier@restaurant.com / Cashier123!")
+        print("  Staff:       staff@restaurant.com / Staff123!")
+        print("  Cashier2:    cashier2@restaurant.com / Cashier123!")
         print("\n")
         
     except Exception as e:

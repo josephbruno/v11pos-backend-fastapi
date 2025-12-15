@@ -25,7 +25,9 @@ from app.routes import (
     analytics,
     dashboard,
     file_manager,
-    translations
+    translations,
+    onboarding,  # Multi-tenant onboarding
+    platform_admin  # NEW: Platform admin dashboard
 )
 
 # Create FastAPI application
@@ -54,6 +56,12 @@ app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
 # Include routers
 # Authentication
 app.include_router(auth.router)
+
+# Multi-tenant Onboarding
+app.include_router(onboarding.router)
+
+# Platform Admin Dashboard
+app.include_router(platform_admin.router)
 
 # User Management
 app.include_router(users.users_router)

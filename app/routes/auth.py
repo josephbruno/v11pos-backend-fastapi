@@ -155,7 +155,7 @@ def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
-    """Login with email and password"""
+    """Login with email and password - Multi-tenant support"""
     # Find user by email (username field in OAuth2 form)
     user = db.query(User).filter(User.email == form_data.username).first()
     
@@ -181,10 +181,51 @@ def login(
             detail="User account is not active"
         )
     
-    # Create access token
+    # Get restaurant context (if user has one)
+    restaurant_id = None
+    restaurant_slug = None
+    is_platform_admin = False
+    
+    if user.restaurant_id:
+        from app.models.restaurant import Restaurant
+        restaurant = db.query(Restaurant).filter(
+            Restaurant.id == user.restaurant_id
+        ).first()
+        
+        if restaurant:
+            # Check if restaurant is active
+            if not restaurant.is_active:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Restaurant is not active"
+                )
+            
+            restaurant_id = restaurant.id
+            restaurant_slug = restaurant.slug
+    else:
+        # Check if user is platform admin
+        from app.models.restaurant import PlatformAdmin
+        platform_admin = db.query(PlatformAdmin).filter(
+            PlatformAdmin.user_id == user.id,
+            PlatformAdmin.is_active == True
+        ).first()
+        
+        if platform_admin:
+            is_platform_admin = True
+    
+    # Create access token with restaurant context
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.id, "email": user.email, "role": user.role},
+        data={
+            "sub": user.id,
+            "user_id": user.id,
+            "email": user.email,
+            "role": user.role,
+            "restaurant_id": restaurant_id,
+            "restaurant_slug": restaurant_slug,
+            "is_platform_admin": is_platform_admin,
+            "type": "access"
+        },
         expires_delta=access_token_expires
     )
     
@@ -197,6 +238,8 @@ def login(
         "access_token": access_token,
         "token_type": "bearer",
         "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES,
+        "restaurant_id": restaurant_id,
+        "restaurant_slug": restaurant_slug,
         "user": {
             "id": user.id,
             "name": user.name,
@@ -206,6 +249,7 @@ def login(
             "status": user.status,
             "avatar": user.avatar,
             "permissions": user.permissions or [],
+            "restaurant_id": restaurant_id,
             "join_date": user.join_date.isoformat() if user.join_date else None,
             "created_at": user.created_at.isoformat() if user.created_at else None,
             "updated_at": user.updated_at.isoformat() if user.updated_at else None
@@ -215,7 +259,7 @@ def login(
 
 @router.post("/login/json")
 def login_json(login_data: UserLogin, db: Session = Depends(get_db)):
-    """Login with JSON body (alternative to form data)"""
+    """Login with JSON body (alternative to form data) - Multi-tenant support"""
     # Find user by email
     user = db.query(User).filter(User.email == login_data.email).first()
     
@@ -241,10 +285,51 @@ def login_json(login_data: UserLogin, db: Session = Depends(get_db)):
             detail="User account is not active"
         )
     
-    # Create access token
+    # Get restaurant context (if user has one)
+    restaurant_id = None
+    restaurant_slug = None
+    is_platform_admin = False
+    
+    if user.restaurant_id:
+        from app.models.restaurant import Restaurant
+        restaurant = db.query(Restaurant).filter(
+            Restaurant.id == user.restaurant_id
+        ).first()
+        
+        if restaurant:
+            # Check if restaurant is active
+            if not restaurant.is_active:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Restaurant is not active"
+                )
+            
+            restaurant_id = restaurant.id
+            restaurant_slug = restaurant.slug
+    else:
+        # Check if user is platform admin
+        from app.models.restaurant import PlatformAdmin
+        platform_admin = db.query(PlatformAdmin).filter(
+            PlatformAdmin.user_id == user.id,
+            PlatformAdmin.is_active == True
+        ).first()
+        
+        if platform_admin:
+            is_platform_admin = True
+    
+    # Create access token with restaurant context
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.id, "email": user.email, "role": user.role},
+        data={
+            "sub": user.id,
+            "user_id": user.id,
+            "email": user.email,
+            "role": user.role,
+            "restaurant_id": restaurant_id,
+            "restaurant_slug": restaurant_slug,
+            "is_platform_admin": is_platform_admin,
+            "type": "access"
+        },
         expires_delta=access_token_expires
     )
     
@@ -256,12 +341,15 @@ def login_json(login_data: UserLogin, db: Session = Depends(get_db)):
         data={
             "access_token": access_token,
             "token_type": "bearer",
+            "restaurant_id": restaurant_id,
+            "restaurant_slug": restaurant_slug,
             "user": {
                 "id": user.id,
                 "name": user.name,
                 "email": user.email,
                 "role": user.role,
-                "status": user.status
+                "status": user.status,
+                "restaurant_id": restaurant_id
             }
         },
         message="Login successful"

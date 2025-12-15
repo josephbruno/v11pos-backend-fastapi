@@ -15,11 +15,12 @@ class QRTable(Base):
     __tablename__ = "qr_tables"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    table_number = Column(String(20), unique=True, nullable=False, index=True)
+    restaurant_id = Column(String(36), ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=False, index=True)
+    table_number = Column(String(20), nullable=False, index=True)
     table_name = Column(String(100), nullable=False)
     location = Column(String(100), nullable=False, default='Main Floor')
     capacity = Column(Integer, nullable=False, default=4)
-    qr_token = Column(String(100), unique=True, nullable=False, index=True)
+    qr_token = Column(String(100), nullable=False, index=True)
     qr_code_url = Column(String(500), nullable=False)
     qr_code_image = Column(String(500))
     is_active = Column(Boolean, nullable=False, default=True, index=True)
@@ -30,16 +31,18 @@ class QRTable(Base):
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
     
     # Relationships
+    restaurant = relationship("Restaurant", back_populates="qr_tables")
     sessions = relationship("QRSession", back_populates="table", foreign_keys="[QRSession.table_id]")
     
     def __repr__(self):
-        return f"<QRTable(id={self.id}, number='{self.table_number}', occupied={self.is_occupied})>"
+        return f"<QRTable(id={self.id}, number='{self.table_number}', occupied={self.is_occupied}, restaurant_id={self.restaurant_id})>"
 
 
 class QRSession(Base):
     __tablename__ = "qr_sessions"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    restaurant_id = Column(String(36), ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=False, index=True)
     table_id = Column(String(36), ForeignKey("qr_tables.id", ondelete="CASCADE"), nullable=False, index=True)
     customer_id = Column(String(36), ForeignKey("customers.id", ondelete="SET NULL"))
     customer_name = Column(String(100), default='Guest')
@@ -64,13 +67,14 @@ class QRSession(Base):
     orders = relationship("Order", back_populates="session")
     
     def __repr__(self):
-        return f"<QRSession(id={self.id}, table_id={self.table_id}, status='{self.status}')>"
+        return f"<QRSession(id={self.id}, table_id={self.table_id}, status='{self.status}', restaurant_id={self.restaurant_id})>"
 
 
 class QRSettings(Base):
     __tablename__ = "qr_settings"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    restaurant_id = Column(String(36), ForeignKey("restaurants.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
     restaurant_name = Column(String(200), nullable=False)
     logo = Column(String(500))
     primary_color = Column(String(7), nullable=False, default='#00A19D')
@@ -95,4 +99,4 @@ class QRSettings(Base):
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
     
     def __repr__(self):
-        return f"<QRSettings(id={self.id}, restaurant='{self.restaurant_name}')>"
+        return f"<QRSettings(id={self.id}, restaurant='{self.restaurant_name}', restaurant_id={self.restaurant_id})>"

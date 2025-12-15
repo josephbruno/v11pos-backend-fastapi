@@ -14,11 +14,12 @@ class User(Base):
     __tablename__ = "users"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    restaurant_id = Column(String(36), ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=True, index=True)  # Nullable for platform admins
     name = Column(String(100), nullable=False)
     email = Column(String(255), unique=True, nullable=False, index=True)
     phone = Column(String(20), nullable=False)
     password = Column(String(255), nullable=False)
-    role = Column(SQLEnum(UserRole), nullable=False, default=UserRole.STAFF, index=True)
+    role = Column(SQLEnum(UserRole, values_callable=lambda obj: [e.value for e in obj]), nullable=False, default=UserRole.STAFF, index=True)
     status = Column(SQLEnum(UserStatus), nullable=False, default=UserStatus.ACTIVE, index=True)
     avatar = Column(String(500))
     permissions = Column(JSON, nullable=False, default=list)
@@ -28,19 +29,21 @@ class User(Base):
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
     
     # Relationships
+    restaurant = relationship("Restaurant", back_populates="users")
     shifts = relationship("ShiftSchedule", back_populates="user", cascade="all, delete-orphan")
     performance = relationship("StaffPerformance", back_populates="user", uselist=False, cascade="all, delete-orphan")
     created_orders = relationship("Order", foreign_keys="[Order.created_by]", back_populates="created_by_user")
     assigned_customer_tags = relationship("CustomerTagMapping", foreign_keys="[CustomerTagMapping.assigned_by]", back_populates="assigned_by_user")
     
     def __repr__(self):
-        return f"<User(id={self.id}, name='{self.name}', role='{self.role}')>"
+        return f"<User(id={self.id}, name='{self.name}', role='{self.role}', restaurant_id={self.restaurant_id})>"
 
 
 class ShiftSchedule(Base):
     __tablename__ = "shift_schedules"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    restaurant_id = Column(String(36), ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     day = Column(SQLEnum(DayOfWeek), nullable=False, index=True)
     start_time = Column(String(5), nullable=False)  # HH:MM format
@@ -61,6 +64,7 @@ class StaffPerformance(Base):
     __tablename__ = "staff_performance"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    restaurant_id = Column(String(36), ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False)
     orders_handled = Column(Integer, nullable=False, default=0)
     total_revenue = Column(Integer, nullable=False, default=0)  # Stored in cents

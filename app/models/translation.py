@@ -14,6 +14,7 @@ class Translation(Base):
     __tablename__ = "translations"
     
     id = Column(String(36), primary_key=True)
+    restaurant_id = Column(String(36), nullable=False, index=True)  # Added for multi-tenancy
     entity_type = Column(String(50), nullable=False)  # 'product', 'category', 'modifier', etc.
     entity_id = Column(String(36), nullable=False)    # ID of the entity
     field_name = Column(String(50), nullable=False)   # 'name', 'description', etc.
@@ -24,10 +25,10 @@ class Translation(Base):
     
     # Indexes for better performance
     __table_args__ = (
-        Index('idx_entity_lookup', 'entity_type', 'entity_id'),
+        Index('idx_restaurant_entity', 'restaurant_id', 'entity_type', 'entity_id'),
         Index('idx_language', 'language_code'),
-        Index('idx_unique_translation', 'entity_type', 'entity_id', 'field_name', 'language_code', unique=True)
+        Index('idx_unique_translation', 'restaurant_id', 'entity_type', 'entity_id', 'field_name', 'language_code', unique=True)
     )
     
     def __repr__(self):
-        return f"<Translation {self.entity_type}.{self.entity_id}.{self.field_name}[{self.language_code}]>"
+        return f"<Translation {self.entity_type}.{self.entity_id}.{self.field_name}[{self.language_code}] restaurant_id={self.restaurant_id}>"

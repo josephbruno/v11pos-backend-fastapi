@@ -14,8 +14,9 @@ class Category(Base):
     __tablename__ = "categories"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    name = Column(String(100), unique=True, nullable=False, index=True)
-    slug = Column(String(100), unique=True, nullable=False, index=True)
+    restaurant_id = Column(String(36), ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(100), nullable=False, index=True)
+    slug = Column(String(100), nullable=False, index=True)
     description = Column(Text)
     active = Column(Boolean, nullable=False, default=True, index=True)
     sort_order = Column(Integer, nullable=False, default=0, index=True)
@@ -24,19 +25,21 @@ class Category(Base):
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
     
     # Relationships
+    restaurant = relationship("Restaurant", back_populates="categories")
     products = relationship("Product", back_populates="category")
     combos = relationship("ComboProduct", back_populates="category")
     
     def __repr__(self):
-        return f"<Category(id={self.id}, name='{self.name}')>"
+        return f"<Category(id={self.id}, name='{self.name}', restaurant_id={self.restaurant_id})>"
 
 
 class Product(Base):
     __tablename__ = "products"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    restaurant_id = Column(String(36), ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(200), nullable=False, index=True)
-    slug = Column(String(200), unique=True, nullable=False, index=True)
+    slug = Column(String(200), nullable=False, index=True)
     description = Column(Text)
     price = Column(Integer, nullable=False)  # Stored in cents
     cost = Column(Integer, nullable=False, default=0)  # Stored in cents
@@ -56,19 +59,21 @@ class Product(Base):
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
     
     # Relationships
+    restaurant = relationship("Restaurant", back_populates="products")
     category = relationship("Category", back_populates="products")
     product_modifiers = relationship("ProductModifier", back_populates="product", cascade="all, delete-orphan")
     order_items = relationship("OrderItem", back_populates="product")
     combo_items = relationship("ComboItem", back_populates="product")
     
     def __repr__(self):
-        return f"<Product(id={self.id}, name='{self.name}', price={self.price})>"
+        return f"<Product(id={self.id}, name='{self.name}', price={self.price}, restaurant_id={self.restaurant_id})>"
 
 
 class Modifier(Base):
     __tablename__ = "modifiers"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    restaurant_id = Column(String(36), ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(100), nullable=False)
     type = Column(SQLEnum(ModifierType), nullable=False, default=ModifierType.SINGLE, index=True)
     category = Column(String(50), nullable=False, default='add-ons', index=True)
@@ -83,13 +88,14 @@ class Modifier(Base):
     product_modifiers = relationship("ProductModifier", back_populates="modifier", cascade="all, delete-orphan")
     
     def __repr__(self):
-        return f"<Modifier(id={self.id}, name='{self.name}', type='{self.type}')>"
+        return f"<Modifier(id={self.id}, name='{self.name}', type='{self.type}', restaurant_id={self.restaurant_id})>"
 
 
 class ModifierOption(Base):
     __tablename__ = "modifier_options"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    restaurant_id = Column(String(36), ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=False, index=True)
     modifier_id = Column(String(36), ForeignKey("modifiers.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(100), nullable=False)
     price = Column(Integer, nullable=False, default=0)  # Stored in cents
@@ -109,6 +115,7 @@ class ProductModifier(Base):
     __tablename__ = "product_modifiers"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    restaurant_id = Column(String(36), ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=False, index=True)
     product_id = Column(String(36), ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
     modifier_id = Column(String(36), ForeignKey("modifiers.id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
@@ -129,8 +136,9 @@ class ComboProduct(Base):
     __tablename__ = "combo_products"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    restaurant_id = Column(String(36), ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(200), nullable=False)
-    slug = Column(String(200), unique=True, nullable=False, index=True)
+    slug = Column(String(200), nullable=False, index=True)
     description = Column(Text)
     price = Column(Integer, nullable=False)  # Stored in cents
     category_id = Column(String(36), ForeignKey("categories.id", ondelete="RESTRICT"), nullable=False, index=True)
@@ -149,13 +157,14 @@ class ComboProduct(Base):
     items = relationship("ComboItem", back_populates="combo", cascade="all, delete-orphan")
     
     def __repr__(self):
-        return f"<ComboProduct(id={self.id}, name='{self.name}', price={self.price})>"
+        return f"<ComboProduct(id={self.id}, name='{self.name}', price={self.price}, restaurant_id={self.restaurant_id})>"
 
 
 class ComboItem(Base):
     __tablename__ = "combo_items"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    restaurant_id = Column(String(36), ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=False, index=True)
     combo_id = Column(String(36), ForeignKey("combo_products.id", ondelete="CASCADE"), nullable=False, index=True)
     product_id = Column(String(36), ForeignKey("products.id", ondelete="RESTRICT"), nullable=False)
     quantity = Column(Integer, nullable=False, default=1)

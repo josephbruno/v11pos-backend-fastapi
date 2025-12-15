@@ -15,7 +15,8 @@ class Order(Base):
     __tablename__ = "orders"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    order_number = Column(String(20), unique=True, nullable=False, index=True)
+    restaurant_id = Column(String(36), ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=False, index=True)
+    order_number = Column(String(20), nullable=False, index=True)
     customer_id = Column(String(36), ForeignKey("customers.id", ondelete="SET NULL"))
     customer_name = Column(String(100), default='Guest')
     customer_phone = Column(String(20))
@@ -51,6 +52,7 @@ class Order(Base):
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
     
     # Relationships
+    restaurant = relationship("Restaurant", back_populates="orders")
     customer = relationship("Customer", back_populates="orders")
     table = relationship("QRTable")
     session = relationship("QRSession", back_populates="orders")
@@ -62,13 +64,14 @@ class Order(Base):
     status_history = relationship("OrderStatusHistory", back_populates="order", cascade="all, delete-orphan")
     
     def __repr__(self):
-        return f"<Order(id={self.id}, number='{self.order_number}', status='{self.status}')>"
+        return f"<Order(id={self.id}, number='{self.order_number}', status='{self.status}', restaurant_id={self.restaurant_id})>"
 
 
 class OrderItem(Base):
     __tablename__ = "order_items"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    restaurant_id = Column(String(36), ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=False, index=True)
     order_id = Column(String(36), ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True)
     product_id = Column(String(36), ForeignKey("products.id", ondelete="RESTRICT"), nullable=False)
     combo_id = Column(String(36), ForeignKey("combo_products.id", ondelete="RESTRICT"))
@@ -98,6 +101,7 @@ class OrderItemModifier(Base):
     __tablename__ = "order_item_modifiers"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    restaurant_id = Column(String(36), ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=False, index=True)
     order_item_id = Column(String(36), ForeignKey("order_items.id", ondelete="CASCADE"), nullable=False, index=True)
     modifier_id = Column(String(36), ForeignKey("modifiers.id", ondelete="RESTRICT"), nullable=False)
     modifier_name = Column(String(100), nullable=False)
@@ -119,6 +123,7 @@ class KOTGroup(Base):
     __tablename__ = "kot_groups"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    restaurant_id = Column(String(36), ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=False, index=True)
     order_id = Column(String(36), ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True)
     department = Column(String(50), nullable=False, index=True)
     status = Column(SQLEnum(KOTStatus), nullable=False, default=KOTStatus.PENDING, index=True)
@@ -143,6 +148,7 @@ class OrderTax(Base):
     __tablename__ = "order_taxes"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    restaurant_id = Column(String(36), ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=False, index=True)
     order_id = Column(String(36), ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True)
     tax_rule_id = Column(String(36), ForeignKey("tax_rules.id", ondelete="RESTRICT"), nullable=False)
     tax_name = Column(String(100), nullable=False)
@@ -165,6 +171,7 @@ class OrderStatusHistory(Base):
     __tablename__ = "order_status_history"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    restaurant_id = Column(String(36), ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=False, index=True)
     order_id = Column(String(36), ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True)
     status = Column(String(50), nullable=False)
     notes = Column(Text)

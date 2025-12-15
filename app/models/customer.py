@@ -15,9 +15,10 @@ class Customer(Base):
     __tablename__ = "customers"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    restaurant_id = Column(String(36), ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(100), nullable=False, index=True)
-    phone = Column(String(20), unique=True, nullable=False, index=True)
-    email = Column(String(255), unique=True)
+    phone = Column(String(20), nullable=False, index=True)
+    email = Column(String(255))
     address = Column(Text)
     loyalty_points = Column(Integer, nullable=False, default=0)
     total_spent = Column(Integer, nullable=False, default=0)  # Stored in cents
@@ -29,20 +30,22 @@ class Customer(Base):
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
     
     # Relationships
+    restaurant = relationship("Restaurant", back_populates="customers")
     tag_mappings = relationship("CustomerTagMapping", back_populates="customer", cascade="all, delete-orphan")
     orders = relationship("Order", back_populates="customer")
     loyalty_transactions = relationship("LoyaltyTransaction", back_populates="customer", cascade="all, delete-orphan")
     qr_sessions = relationship("QRSession", back_populates="customer")
     
     def __repr__(self):
-        return f"<Customer(id={self.id}, name='{self.name}', phone='{self.phone}')>"
+        return f"<Customer(id={self.id}, name='{self.name}', phone='{self.phone}', restaurant_id={self.restaurant_id})>"
 
 
 class CustomerTag(Base):
     __tablename__ = "customer_tags"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    name = Column(String(50), unique=True, nullable=False, index=True)
+    restaurant_id = Column(String(36), ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(50), nullable=False, index=True)
     color = Column(String(7), nullable=False, default='#00A19D')
     benefits = Column(JSON, nullable=False, default=list)
     discount_percentage = Column(Integer, nullable=False, default=0)  # Stored as percentage * 100 (e.g., 10.50% = 1050)
@@ -54,13 +57,14 @@ class CustomerTag(Base):
     customer_mappings = relationship("CustomerTagMapping", back_populates="tag", cascade="all, delete-orphan")
     
     def __repr__(self):
-        return f"<CustomerTag(id={self.id}, name='{self.name}')>"
+        return f"<CustomerTag(id={self.id}, name='{self.name}', restaurant_id={self.restaurant_id})>"
 
 
 class CustomerTagMapping(Base):
     __tablename__ = "customer_tag_mapping"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    restaurant_id = Column(String(36), ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=False, index=True)
     customer_id = Column(String(36), ForeignKey("customers.id", ondelete="CASCADE"), nullable=False)
     tag_id = Column(String(36), ForeignKey("customer_tags.id", ondelete="CASCADE"), nullable=False)
     assigned_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
@@ -79,6 +83,7 @@ class LoyaltyRule(Base):
     __tablename__ = "loyalty_rules"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    restaurant_id = Column(String(36), ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(100), nullable=False)
     earn_rate = Column(Integer, nullable=False, default=100)  # Stored as rate * 100 (e.g., 1.00 = 100)
     redeem_rate = Column(Integer, nullable=False, default=100)
@@ -92,13 +97,14 @@ class LoyaltyRule(Base):
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
     
     def __repr__(self):
-        return f"<LoyaltyRule(id={self.id}, name='{self.name}')>"
+        return f"<LoyaltyRule(id={self.id}, name='{self.name}', restaurant_id={self.restaurant_id})>"
 
 
 class LoyaltyTransaction(Base):
     __tablename__ = "loyalty_transactions"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    restaurant_id = Column(String(36), ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=False, index=True)
     customer_id = Column(String(36), ForeignKey("customers.id", ondelete="CASCADE"), nullable=False, index=True)
     order_id = Column(String(36), ForeignKey("orders.id", ondelete="SET NULL"))
     points = Column(Integer, nullable=False)

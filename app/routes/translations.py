@@ -15,7 +15,7 @@ from app.database import get_db
 router = APIRouter(prefix="/api/v1/translations", tags=["translations"])
 
 TRANSLATIONS_DIR = Path(__file__).parent.parent / "translations"
-SUPPORTED_LANGUAGES = ["en", "es", "fr", "ar"]
+SUPPORTED_LANGUAGES = ["en", "es", "fr", "ar", "hi"]
 
 
 @router.get("/languages")
@@ -47,6 +47,12 @@ def get_supported_languages():
                 "name": "Arabic",
                 "native_name": "العربية",
                 "rtl": True
+            },
+            {
+                "code": "hi",
+                "name": "Hindi",
+                "native_name": "हिन्दी",
+                "rtl": False
             }
         ],
         "default_language": "en"

@@ -1,7 +1,7 @@
 """
 Settings and Tax related models
 """
-from sqlalchemy import Column, String, Boolean, DateTime, Integer, Text, JSON
+from sqlalchemy import Column, String, Boolean, DateTime, Integer, ForeignKey, Text, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from sqlalchemy import Enum as SQLEnum
@@ -15,6 +15,7 @@ class TaxRule(Base):
     __tablename__ = "tax_rules"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    restaurant_id = Column(String(36), ForeignKey("restaurants.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(100), nullable=False)
     type = Column(String(50), nullable=False)
     percentage = Column(Integer, nullable=False)  # Stored as percentage * 100
@@ -29,13 +30,14 @@ class TaxRule(Base):
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
     
     def __repr__(self):
-        return f"<TaxRule(id={self.id}, name='{self.name}', percentage={self.percentage})>"
+        return f"<TaxRule(id={self.id}, name='{self.name}', percentage={self.percentage}, restaurant_id={self.restaurant_id})>"
 
 
 class Settings(Base):
     __tablename__ = "settings"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    restaurant_id = Column(String(36), ForeignKey("restaurants.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
     restaurant_name = Column(String(200), nullable=False)
     address = Column(Text)
     phone = Column(String(20))
@@ -58,4 +60,4 @@ class Settings(Base):
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
     
     def __repr__(self):
-        return f"<Settings(id={self.id}, restaurant='{self.restaurant_name}')>"
+        return f"<Settings(id={self.id}, restaurant='{self.restaurant_name}', restaurant_id={self.restaurant_id})>"
