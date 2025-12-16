@@ -7,8 +7,8 @@ services:
     environment:
       DB_HOST: host.docker.internal
       DB_PORT: 3306
-      DB_USER: root
-      DB_PASSWORD: root
+      DB_USER: v11tech
+      DB_PASSWORD: H91tB64qWe27
       DB_NAME: restaurant_pos
     ports:
       - "8003:8000"
