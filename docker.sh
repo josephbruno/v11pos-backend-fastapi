@@ -224,7 +224,7 @@ setup() {
     
     print_info "Creating initial migration..."
     sleep 2
-    migrate_create "Initial migration"
+    migrate_create "setup" "Initial migration"
     echo ""
     
     print_info "Applying migrations..."
