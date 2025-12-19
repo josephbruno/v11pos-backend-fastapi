@@ -61,8 +61,13 @@ build() {
     print_header "Building Docker Containers"
     check_docker
     
-    print_info "Building images..."
-    $USE_SUDO docker compose build
+    if [ "$2" = "--no-cache" ] || [ "$2" = "no-cache" ]; then
+        print_info "Building images without cache..."
+        $USE_SUDO docker compose build --no-cache
+    else
+        print_info "Building images..."
+        $USE_SUDO docker compose build
+    fi
     
     print_success "Build completed successfully!"
 }
@@ -249,7 +254,7 @@ show_help() {
     echo "Available commands:"
     echo ""
     echo "  ${GREEN}setup${NC}                    - Full setup (build, up, migrate)"
-    echo "  ${GREEN}build${NC}                    - Build Docker images"
+    echo "  ${GREEN}build${NC} [--no-cache]      - Build Docker images (use --no-cache to rebuild without cache)"
     echo "  ${GREEN}up${NC}                       - Start containers"
     echo "  ${GREEN}down${NC}                     - Stop containers"
     echo "  ${GREEN}down:volumes${NC}             - Stop containers and remove volumes"
@@ -280,7 +285,7 @@ case "$1" in
         setup
         ;;
     build)
-        build
+        build "$@"
         ;;
     up)
         up

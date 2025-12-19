@@ -1,5 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.core.database import init_db, close_db
@@ -38,7 +39,7 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
     docs_url="/docs",
-    redoc_url="/redoc",
+    redoc_url=None,
     servers=[
         {"url": "http://localhost:8000", "description": "Development server"},
     ]
@@ -81,6 +82,19 @@ async def health_check():
         },
         "error": None
     }
+
+
+# Override ReDoc to ensure it works with absolute URLs
+from fastapi.openapi.docs import get_redoc_html
+
+@app.get("/redoc", include_in_schema=False)
+async def redoc_override(request: Request):
+    """ReDoc documentation with absolute OpenAPI URL"""
+    return get_redoc_html(
+        openapi_url="/openapi.json",
+        title=app.title + " - ReDoc",
+        redoc_js_url="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"
+    )
 
 
 # Include routers
