@@ -38,7 +38,10 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    servers=[
+        {"url": "http://localhost:8000", "description": "Development server"},
+    ]
 )
 
 # CORS middleware
