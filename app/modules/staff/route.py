@@ -5,6 +5,7 @@ from datetime import date
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
+from app.modules.user.model import User
 from app.modules.staff.service import StaffService
 from app.modules.staff.schema import (
     RoleCreate, RoleUpdate, RoleResponse,
@@ -28,7 +29,7 @@ async def create_role(
     role_data: RoleCreate,
     restaurant_id: str = Query(...),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Create a new role with permissions.
@@ -38,7 +39,7 @@ async def create_role(
         db=db,
         restaurant_id=restaurant_id,
         role_data=role_data,
-        user_id=current_user["id"]
+        user_id=current_user.id
     )
 
 
@@ -46,7 +47,7 @@ async def create_role(
 async def get_role(
     role_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Get role by ID with permissions"""
     role = await StaffService.get_role_by_id(db, role_id)
@@ -66,7 +67,7 @@ async def get_restaurant_roles(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Get all roles for a restaurant"""
     return await StaffService.get_roles_by_restaurant(
@@ -83,14 +84,14 @@ async def update_role(
     role_id: str,
     role_data: RoleUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Update role details and permissions"""
     return await StaffService.update_role(
         db=db,
         role_id=role_id,
         role_data=role_data,
-        user_id=current_user["id"]
+        user_id=current_user.id
     )
 
 
@@ -101,7 +102,7 @@ async def create_staff(
     staff_data: StaffCreate,
     restaurant_id: str = Query(...),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Create a new staff member.
@@ -111,7 +112,7 @@ async def create_staff(
         db=db,
         restaurant_id=restaurant_id,
         staff_data=staff_data,
-        user_id=current_user["id"]
+        user_id=current_user.id
     )
 
 
@@ -119,7 +120,7 @@ async def create_staff(
 async def get_staff(
     staff_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Get staff member by ID"""
     staff = await StaffService.get_staff_by_id(db, staff_id)
@@ -136,7 +137,7 @@ async def get_staff(
 async def get_staff_by_code(
     employee_code: str,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Get staff member by employee code"""
     staff = await StaffService.get_staff_by_employee_code(db, employee_code)
@@ -159,7 +160,7 @@ async def get_restaurant_staff(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Get all staff members for a restaurant.
@@ -182,14 +183,14 @@ async def update_staff(
     staff_id: str,
     staff_data: StaffUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Update staff member details"""
     return await StaffService.update_staff(
         db=db,
         staff_id=staff_id,
         staff_data=staff_data,
-        user_id=current_user["id"]
+        user_id=current_user.id
     )
 
 
@@ -197,7 +198,7 @@ async def update_staff(
 async def delete_staff(
     staff_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Deactivate staff member (soft delete).
@@ -214,7 +215,7 @@ async def create_shift(
     shift_data: ShiftCreate,
     restaurant_id: str = Query(...),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Create a shift for staff member.
@@ -224,7 +225,7 @@ async def create_shift(
         db=db,
         restaurant_id=restaurant_id,
         shift_data=shift_data,
-        user_id=current_user["id"]
+        user_id=current_user.id
     )
 
 
@@ -235,7 +236,7 @@ async def get_shifts(
     end_date: date = Query(...),
     staff_id: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Get shifts for date range. Optionally filter by staff."""
     return await StaffService.get_shifts_by_date_range(
@@ -255,7 +256,7 @@ async def check_in(
     request: Request,
     restaurant_id: str = Query(...),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Staff check-in.
@@ -276,7 +277,7 @@ async def check_out(
     check_out_data: AttendanceCheckOut,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Staff check-out.
@@ -296,7 +297,7 @@ async def create_manual_attendance(
     attendance_data: AttendanceManualEntry,
     restaurant_id: str = Query(...),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Create manual attendance entry.
@@ -306,7 +307,7 @@ async def create_manual_attendance(
         db=db,
         restaurant_id=restaurant_id,
         attendance_data=attendance_data,
-        user_id=current_user["id"]
+        user_id=current_user.id
     )
 
 
@@ -320,7 +321,7 @@ async def get_attendance(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Get attendance records with filters.
@@ -345,7 +346,7 @@ async def create_leave_application(
     leave_data: LeaveApplicationCreate,
     restaurant_id: str = Query(...),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Create leave application.
@@ -363,7 +364,7 @@ async def approve_leave(
     leave_id: str,
     approval_data: LeaveApproval,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Approve or reject leave application.
@@ -374,7 +375,7 @@ async def approve_leave(
         db=db,
         leave_id=leave_id,
         approval_data=approval_data,
-        user_id=current_user["id"]
+        user_id=current_user.id
     )
 
 
@@ -383,7 +384,7 @@ async def get_leave_balance(
     staff_id: str,
     year: Optional[int] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Get leave balance for staff member.

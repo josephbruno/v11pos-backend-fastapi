@@ -59,7 +59,8 @@ async def create_order(
     except Exception as e:
         return error_response(
             message="Failed to create order",
-            error=str(e)
+            error_code="ORDER_CREATE_ERROR",
+            error_details=str(e)
         )
 
 
@@ -70,7 +71,7 @@ async def get_order(
     current_user: User = Depends(get_current_user)
 ):
     """Get order by ID with items"""
-    order = await OrderService.get_order_by_id(db, order_id)
+    order = await OrderService.get_order_by_id(db, order_id, include_items=True)
     
     if not order:
         raise HTTPException(
@@ -78,10 +79,8 @@ async def get_order(
             detail="Order not found"
         )
     
-    # Load items
-    items = await OrderService.get_order_items(db, order_id)
+    # Items are already loaded via selectinload
     order_response = OrderResponse.model_validate(order)
-    order_response.items = [OrderItemResponse.model_validate(item) for item in items]
     
     return success_response(
         data=order_response,
@@ -255,10 +254,9 @@ async def update_order_status(
             detail="Order not found"
         )
     
-    # Load items
-    items = await OrderService.get_order_items(db, order_id)
+    # Reload order with items using selectinload
+    order = await OrderService.get_order_by_id(db, order_id, include_items=True)
     order_response = OrderResponse.model_validate(order)
-    order_response.items = [OrderItemResponse.model_validate(item) for item in items]
     
     return success_response(
         data=order_response,

@@ -1,0 +1,32 @@
+{
+  "passed": 3,
+  "failed": 1,
+  "tests": [
+    {
+      "name": "Health Check",
+      "status": "PASSED",
+      "data": {
+        "status": "healthy",
+        "environment": "development"
+      }
+    },
+    {
+      "name": "Root Endpoint",
+      "status": "PASSED",
+      "data": {
+        "environment": "development",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "name": "Create Admin User",
+      "status": "FAILED",
+      "error": "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"body\",\"username\"],\"msg\":\"Field required\",\"input\":{\"email\":\"admin@postest.com\",\"password\":\"Admin@123456\",\"full_name\":\"Admin User\",\"phone\":\"+91-9876543210\",\"role\":\"admin\",\"is_active\":true},\"url\":\"https://errors.pydantic.dev/2.5/v/missing\"}]}"
+    },
+    {
+      "name": "Login Admin",
+      "status": "PASSED",
+      "data": null
+    }
+  ]
+}

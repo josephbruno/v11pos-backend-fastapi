@@ -144,8 +144,7 @@ class OrderService:
         query = select(Order).where(Order.id == order_id)
         
         if include_items:
-            # Note: Need to add relationship in model for this to work
-            pass
+            query = query.options(selectinload(Order.items))
         
         result = await db.execute(query)
         return result.scalar_one_or_none()

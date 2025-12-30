@@ -182,6 +182,9 @@ class Order(Base):
         nullable=False
     )
     
+    # Relationships
+    items: Mapped[List["OrderItem"]] = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
+    
     def __repr__(self) -> str:
         return f"<Order(id={self.id}, order_number={self.order_number}, type={self.order_type}, status={self.status}, total={self.total_amount})>"
 
@@ -246,6 +249,9 @@ class OrderItem(Base):
         onupdate=datetime.utcnow,
         nullable=False
     )
+    
+    # Relationships
+    order: Mapped["Order"] = relationship("Order", back_populates="items")
     
     def __repr__(self) -> str:
         return f"<OrderItem(id={self.id}, order_id={self.order_id}, product={self.product_name}, quantity={self.quantity}, total={self.total_price})>"
