@@ -8,6 +8,12 @@ from app.modules.auth.route import router as auth_router
 from app.modules.user.route import router as user_router
 from app.modules.restaurant.route import router as restaurant_router
 from app.modules.product.route import router as product_router
+from app.modules.customer.route import router as customer_router
+from app.modules.table.route import router as table_router
+from app.modules.order.route import router as order_router
+from app.modules.kds.route import router as kds_router
+from app.modules.inventory.route import router as inventory_router
+from app.modules.staff.route import router as staff_router
 
 
 @asynccontextmanager
@@ -102,6 +108,12 @@ app.include_router(auth_router)
 app.include_router(user_router)
 app.include_router(restaurant_router)
 app.include_router(product_router)
+app.include_router(customer_router)
+app.include_router(table_router)
+app.include_router(order_router)
+app.include_router(kds_router)
+app.include_router(inventory_router)
+app.include_router(staff_router)
 
 
 if __name__ == "__main__":

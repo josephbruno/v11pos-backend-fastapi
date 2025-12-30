@@ -12,6 +12,29 @@ from app.core.config import settings
 # Import all models to ensure they're registered with Base
 from app.modules.user.model import User
 from app.modules.auth.model import LoginLog
+from app.modules.customer.model import Customer
+from app.modules.table.model import Table
+from app.modules.order.model import Order, OrderItem
+from app.modules.kds.model import KitchenStation, KitchenDisplay, KitchenDisplayItem
+from app.modules.inventory.model import (
+    Ingredient,
+    Recipe,
+    RecipeIngredient,
+    StockTransaction,
+    Supplier,
+    PurchaseOrder,
+    PurchaseOrderItem,
+    LowStockAlert
+)
+from app.modules.staff.model import (
+    Role,
+    RolePermission,
+    Staff,
+    Shift,
+    Attendance,
+    LeaveApplication,
+    LeaveBalance
+)
 from app.modules.restaurant.model import (
     Restaurant,
     RestaurantOwner,

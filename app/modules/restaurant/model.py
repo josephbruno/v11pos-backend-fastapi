@@ -153,6 +153,13 @@ class Restaurant(Base):
     last_activity: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)  # Soft delete
     
+    # Relationships
+    roles: Mapped[List["Role"]] = relationship("Role", back_populates="restaurant")
+    staff: Mapped[List["Staff"]] = relationship("Staff", back_populates="restaurant")
+    shifts: Mapped[List["Shift"]] = relationship("Shift", back_populates="restaurant")
+    attendance_records: Mapped[List["Attendance"]] = relationship("Attendance", back_populates="restaurant")
+    leave_applications: Mapped[List["LeaveApplication"]] = relationship("LeaveApplication", back_populates="restaurant")
+    
     def __repr__(self):
         return f"<Restaurant(id={self.id}, name='{self.name}', slug='{self.slug}', plan='{self.subscription_plan}')>"
 
