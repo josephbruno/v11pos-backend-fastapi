@@ -11,12 +11,92 @@ from app.modules.product.model import ModifierType
 
 class CategoryBase(BaseModel):
     """Base category schema"""
+    # Basic Information
     name: str = Field(..., min_length=1, max_length=100)
     slug: str = Field(..., min_length=1, max_length=100)
     description: Optional[str] = None
+    
+    # Parent-Child Hierarchy
+    parent_id: Optional[str] = None
+    level: int = 0
+    
+    # Display & Ordering
     active: bool = True
     sort_order: int = 0
+    is_featured: bool = False
+    
+    # Media
     image: Optional[str] = None
+    icon: Optional[str] = None
+    banner_image: Optional[str] = None
+    thumbnail: Optional[str] = None
+    
+    # Colors & Styling
+    color: Optional[str] = Field(None, max_length=7)
+    background_color: Optional[str] = Field(None, max_length=7)
+    text_color: Optional[str] = Field(None, max_length=7)
+    
+    # Display Settings
+    display_type: Optional[str] = Field(None, max_length=20)
+    items_per_row: Optional[int] = None
+    show_in_menu: bool = True
+    show_in_homepage: bool = False
+    show_in_pos: bool = True
+    
+    # Availability Settings
+    available_for_delivery: bool = True
+    available_for_takeaway: bool = True
+    available_for_dine_in: bool = True
+    
+    # Time-based Availability
+    available_from_time: Optional[str] = Field(None, max_length=10)
+    available_to_time: Optional[str] = Field(None, max_length=10)
+    available_days: Optional[dict] = None
+    
+    # Tax Settings
+    tax_rate: Optional[float] = None
+    tax_inclusive: bool = False
+    
+    # SEO & Marketing
+    seo_title: Optional[str] = Field(None, max_length=200)
+    seo_description: Optional[str] = None
+    seo_keywords: Optional[str] = None
+    meta_tags: Optional[dict] = None
+    
+    # Statistics & Analytics
+    product_count: int = 0
+    total_sales: int = 0
+    view_count: int = 0
+    order_count: int = 0
+    
+    # Commission & Pricing
+    commission_percentage: Optional[float] = None
+    min_price: Optional[int] = None
+    max_price: Optional[int] = None
+    
+    # Discounts & Promotions
+    discount_applicable: bool = True
+    default_discount_percentage: Optional[float] = None
+    
+    # Attributes & Filters
+    attributes: Optional[dict] = None
+    tags: Optional[dict] = None
+    dietary_info: Optional[dict] = None
+    
+    # Kitchen & Operations
+    kitchen_station: Optional[str] = Field(None, max_length=50)
+    preparation_area: Optional[str] = Field(None, max_length=50)
+    avg_preparation_time: Optional[int] = None
+    
+    # Content & Notes
+    long_description: Optional[str] = None
+    short_description: Optional[str] = Field(None, max_length=500)
+    ingredients_note: Optional[str] = None
+    allergen_info: Optional[str] = None
+    
+    # External Integration
+    external_id: Optional[str] = Field(None, max_length=100)
+    external_url: Optional[str] = Field(None, max_length=500)
 
 
 class CategoryCreate(CategoryBase):
@@ -26,12 +106,92 @@ class CategoryCreate(CategoryBase):
 
 class CategoryUpdate(BaseModel):
     """Schema for updating category"""
+    # Basic Information
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     slug: Optional[str] = Field(None, min_length=1, max_length=100)
     description: Optional[str] = None
+    
+    # Parent-Child Hierarchy
+    parent_id: Optional[str] = None
+    level: Optional[int] = None
+    
+    # Display & Ordering
     active: Optional[bool] = None
     sort_order: Optional[int] = None
+    is_featured: Optional[bool] = None
+    
+    # Media
     image: Optional[str] = None
+    icon: Optional[str] = None
+    banner_image: Optional[str] = None
+    thumbnail: Optional[str] = None
+    
+    # Colors & Styling
+    color: Optional[str] = Field(None, max_length=7)
+    background_color: Optional[str] = Field(None, max_length=7)
+    text_color: Optional[str] = Field(None, max_length=7)
+    
+    # Display Settings
+    display_type: Optional[str] = Field(None, max_length=20)
+    items_per_row: Optional[int] = None
+    show_in_menu: Optional[bool] = None
+    show_in_homepage: Optional[bool] = None
+    show_in_pos: Optional[bool] = None
+    
+    # Availability Settings
+    available_for_delivery: Optional[bool] = None
+    available_for_takeaway: Optional[bool] = None
+    available_for_dine_in: Optional[bool] = None
+    
+    # Time-based Availability
+    available_from_time: Optional[str] = Field(None, max_length=10)
+    available_to_time: Optional[str] = Field(None, max_length=10)
+    available_days: Optional[dict] = None
+    
+    # Tax Settings
+    tax_rate: Optional[float] = None
+    tax_inclusive: Optional[bool] = None
+    
+    # SEO & Marketing
+    seo_title: Optional[str] = Field(None, max_length=200)
+    seo_description: Optional[str] = None
+    seo_keywords: Optional[str] = None
+    meta_tags: Optional[dict] = None
+    
+    # Statistics & Analytics
+    product_count: Optional[int] = None
+    total_sales: Optional[int] = None
+    view_count: Optional[int] = None
+    order_count: Optional[int] = None
+    
+    # Commission & Pricing
+    commission_percentage: Optional[float] = None
+    min_price: Optional[int] = None
+    max_price: Optional[int] = None
+    
+    # Discounts & Promotions
+    discount_applicable: Optional[bool] = None
+    default_discount_percentage: Optional[float] = None
+    
+    # Attributes & Filters
+    attributes: Optional[dict] = None
+    tags: Optional[dict] = None
+    dietary_info: Optional[dict] = None
+    
+    # Kitchen & Operations
+    kitchen_station: Optional[str] = Field(None, max_length=50)
+    preparation_area: Optional[str] = Field(None, max_length=50)
+    avg_preparation_time: Optional[int] = None
+    
+    # Content & Notes
+    long_description: Optional[str] = None
+    short_description: Optional[str] = Field(None, max_length=500)
+    ingredients_note: Optional[str] = None
+    allergen_info: Optional[str] = None
+    
+    # External Integration
+    external_id: Optional[str] = Field(None, max_length=100)
+    external_url: Optional[str] = Field(None, max_length=500)
 
 
 class CategoryResponse(CategoryBase):
@@ -40,6 +200,7 @@ class CategoryResponse(CategoryBase):
     restaurant_id: str
     created_at: datetime
     updated_at: datetime
+    deleted_at: Optional[datetime] = None
     
     model_config = ConfigDict(from_attributes=True)
 
