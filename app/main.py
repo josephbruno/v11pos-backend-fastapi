@@ -16,6 +16,7 @@ from app.modules.kds.route import router as kds_router
 from app.modules.inventory.route import router as inventory_router
 from app.modules.staff.route import router as staff_router
 from app.modules.reports.route import router as reports_router
+from app.modules.data_import.route import router as data_import_router
 
 
 @asynccontextmanager
@@ -113,6 +114,7 @@ app.include_router(kds_router, prefix="/api/v1")
 app.include_router(inventory_router, prefix="/api/v1")
 app.include_router(staff_router, prefix="/api/v1")
 app.include_router(reports_router, prefix="/api/v1")
+app.include_router(data_import_router, prefix="/api/v1")
 
 
 if __name__ == "__main__":
