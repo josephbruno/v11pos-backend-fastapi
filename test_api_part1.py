@@ -8,7 +8,7 @@ from datetime import datetime, date, timedelta
 import time
 
 # Base URL
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8000/api/v1"
 
 # Test data storage
 test_data = {

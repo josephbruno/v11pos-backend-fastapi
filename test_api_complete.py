@@ -11,7 +11,7 @@ import random
 import string
 
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8000/api/v1"
 TOKEN = None
 RESTAURANT_ID = None
 HEADERS = {"Content-Type": "application/json"}
@@ -109,8 +109,8 @@ def main():
     # 1. HEALTH CHECK
     # ========================================================================
     print("📍 1. HEALTH CHECK")
-    test_endpoint("Health Check", "GET", f"{BASE_URL}/health")
-    test_endpoint("Root Endpoint", "GET", f"{BASE_URL}/")
+    test_endpoint("Health Check", "GET", "http://localhost:8000/health")
+    test_endpoint("Root Endpoint", "GET", "http://localhost:8000/")
     print()
     
     # ========================================================================

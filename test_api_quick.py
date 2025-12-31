@@ -5,7 +5,7 @@ import requests
 import json
 from datetime import datetime, date, timedelta
 
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8000/api/v1"
 
 # Test results tracking
 results = {
@@ -81,8 +81,8 @@ print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 
 # ============= 1. HEALTH CHECK =============
 print("\n📍 1. HEALTH CHECK")
-test_endpoint("Health Check", "GET", f"{BASE_URL}/health")
-test_endpoint("Root Endpoint", "GET", f"{BASE_URL}/")
+test_endpoint("Health Check", "GET", "http://localhost:8000/health")
+test_endpoint("Root Endpoint", "GET", "http://localhost:8000/")
 
 # ============= 2. USER & AUTH =============
 print("\n📍 2. USER & AUTH MODULE")

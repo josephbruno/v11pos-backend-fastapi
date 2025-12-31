@@ -103,17 +103,17 @@ async def redoc_override(request: Request):
     )
 
 
-# Include routers
-app.include_router(auth_router)
-app.include_router(user_router)
-app.include_router(restaurant_router)
-app.include_router(product_router)
-app.include_router(customer_router)
-app.include_router(table_router)
-app.include_router(order_router)
-app.include_router(kds_router)
-app.include_router(inventory_router)
-app.include_router(staff_router)
+# Include routers with /api/v1/ prefix
+app.include_router(auth_router, prefix="/api/v1")
+app.include_router(user_router, prefix="/api/v1")
+app.include_router(restaurant_router, prefix="/api/v1")
+app.include_router(product_router, prefix="/api/v1")
+app.include_router(customer_router, prefix="/api/v1")
+app.include_router(table_router, prefix="/api/v1")
+app.include_router(order_router, prefix="/api/v1")
+app.include_router(kds_router, prefix="/api/v1")
+app.include_router(inventory_router, prefix="/api/v1")
+app.include_router(staff_router, prefix="/api/v1")
 
 
 if __name__ == "__main__":
