@@ -4,6 +4,7 @@ from fastapi.responses import HTMLResponse
 from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.core.database import init_db, close_db
+from app.core.response import success_response
 from app.modules.auth.route import router as auth_router
 from app.modules.user.route import router as user_router
 from app.modules.restaurant.route import router as restaurant_router
@@ -65,29 +66,25 @@ app.add_middleware(
 @app.get("/", tags=["Health"])
 async def root():
     """Root endpoint - Health check"""
-    return {
-        "success": True,
-        "message": "FastAPI POS System is running",
-        "data": {
+    return success_response(
+        message="FastAPI POS System is running",
+        data={
             "environment": settings.APP_ENV,
             "version": "1.0.0"
-        },
-        "error": None
-    }
+        }
+    )
 
 
 @app.get("/health", tags=["Health"])
 async def health_check():
     """Health check endpoint"""
-    return {
-        "success": True,
-        "message": "Service is healthy",
-        "data": {
+    return success_response(
+        message="Service is healthy",
+        data={
             "status": "healthy",
             "environment": settings.APP_ENV
-        },
-        "error": None
-    }
+        }
+    )
 
 
 # Override ReDoc to ensure it works with absolute URLs
