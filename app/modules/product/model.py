@@ -146,28 +146,173 @@ class Product(Base):
         nullable=False,
         index=True
     )
+    
+    # Basic Information
     name: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
     slug: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    sku: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True, unique=True)
+    barcode: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    short_description: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    long_description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    
+    # Pricing
     price: Mapped[int] = mapped_column(Integer, nullable=False)  # In paise/cents
     cost: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    compare_at_price: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # Original price for discounts
+    wholesale_price: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    min_price: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # Minimum selling price
+    max_price: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # Maximum selling price
+    price_varies: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)  # For variants
+    
+    # Category & Organization
     category_id: Mapped[str] = mapped_column(
         String(36),
         ForeignKey("categories.id", ondelete="RESTRICT"),
         nullable=False,
         index=True
     )
+    subcategory_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True, index=True)
+    brand: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
+    vendor: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
+    
+    # Inventory Management
     stock: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     min_stock: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
+    max_stock: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    reorder_point: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    reorder_quantity: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    track_inventory: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    allow_backorder: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    stock_unit: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # piece, kg, liter, etc.
+    
+    # Availability & Status
     available: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
+    is_published: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     featured: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    is_new: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_bestseller: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_seasonal: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    
+    # Order Type Availability
+    available_for_delivery: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    available_for_takeaway: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    available_for_dine_in: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    available_for_online: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    
+    # Time-based Availability
+    available_from_time: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)  # HH:MM
+    available_to_time: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)  # HH:MM
+    available_days: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    availability_schedule: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    
+    # Media & Display
     image: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    thumbnail: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     images: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    video_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    gallery: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    
+    # Colors & Styling
+    badge_text: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # "New", "Hot", "Sale"
+    badge_color: Mapped[Optional[str]] = mapped_column(String(7), nullable=True)
+    display_color: Mapped[Optional[str]] = mapped_column(String(7), nullable=True)
+    
+    # Tags & Classification
     tags: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    collections: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    product_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # physical, digital, service
+    
+    # Kitchen & Operations
     department: Mapped[str] = mapped_column(String(50), default='kitchen', nullable=False, index=True)
+    kitchen_station: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    preparation_area: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     printer_tag: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     preparation_time: Mapped[int] = mapped_column(Integer, default=15, nullable=False)
+    cooking_instructions: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    
+    # Dietary & Allergen Information
     nutritional_info: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    calories: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    dietary_tags: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # ["vegan", "gluten-free"]
+    allergen_info: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    ingredients: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    spice_level: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # mild, medium, hot, extra-hot
+    
+    # Tax & Compliance
+    tax_rate: Mapped[Optional[float]] = mapped_column(nullable=True)
+    tax_inclusive: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    tax_category: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    hsn_code: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # For GST India
+    
+    # Discounts & Promotions
+    discount_applicable: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    discount_percentage: Mapped[Optional[float]] = mapped_column(nullable=True)
+    discount_amount: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    discount_start_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    discount_end_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    
+    # Ordering Rules
+    min_order_quantity: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    max_order_quantity: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    order_increment: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    
+    # Variants & Customization
+    has_variants: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    variant_options: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # ["size", "color"]
+    requires_customization: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    customization_options: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    
+    # Weight & Dimensions
+    weight: Mapped[Optional[float]] = mapped_column(nullable=True)  # in grams
+    weight_unit: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    length: Mapped[Optional[float]] = mapped_column(nullable=True)
+    width: Mapped[Optional[float]] = mapped_column(nullable=True)
+    height: Mapped[Optional[float]] = mapped_column(nullable=True)
+    dimension_unit: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    
+    # SEO & Marketing
+    seo_title: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    seo_description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    seo_keywords: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    meta_tags: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    
+    # Analytics & Performance
+    view_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    order_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_sold: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_revenue: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    rating_average: Mapped[Optional[float]] = mapped_column(nullable=True)
+    rating_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    review_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    
+    # Sorting & Display
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False, index=True)
+    display_priority: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    
+    # Loyalty & Rewards
+    loyalty_points: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    reward_applicable: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    
+    # Commission & Marketplace
+    commission_percentage: Mapped[Optional[float]] = mapped_column(nullable=True)
+    commission_type: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # percentage, fixed
+    
+    # Additional Attributes
+    attributes: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    custom_fields: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    specifications: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    
+    # External Integration
+    external_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
+    external_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    supplier_sku: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    
+    # Notes & Internal
+    internal_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    admin_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    
+    # Timestamps
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
@@ -175,6 +320,8 @@ class Product(Base):
         onupdate=datetime.utcnow,
         nullable=False
     )
+    published_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)  # Soft delete
     
     def __repr__(self):
         return f"<Product(id={self.id}, name='{self.name}', price={self.price}, restaurant_id={self.restaurant_id})>"
