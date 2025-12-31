@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, status, Request
+from fastapi import APIRouter, Depends, status, Request, Form
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
+from typing import List, Optional
 from app.core.database import get_db
 from app.core.dependencies import get_current_active_user
 from app.core.response import success_response, error_response
@@ -76,12 +76,18 @@ def parse_user_agent(user_agent: str) -> dict:
 
 @router.post("/login", response_model=None)
 async def login(
-    login_data: LoginRequest,
     request: Request,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    email: Optional[str] = Form(None),
+    password: Optional[str] = Form(None),
+    login_data: Optional[LoginRequest] = None
 ):
     """
     Authenticate user and get access + refresh tokens
+    
+    Supports both JSON and Form data:
+    - JSON: {"email": "user@example.com", "password": "password123"}
+    - Form: email=user@example.com&password=password123
     
     Logs all login attempts with:
     - IP address
@@ -96,6 +102,17 @@ async def login(
     Returns access_token and refresh_token on success
     """
     try:
+        # Support both JSON and Form data
+        user_email = email if email else (login_data.email if login_data else None)
+        user_password = password if password else (login_data.password if login_data else None)
+        
+        if not user_email or not user_password:
+            return error_response(
+                message="Missing credentials",
+                error_code="MISSING_CREDENTIALS",
+                error_details="Email and password are required"
+            )
+        
         # Extract request metadata
         ip_address = get_client_ip(request)
         user_agent = request.headers.get("User-Agent", "unknown")
@@ -104,8 +121,8 @@ async def login(
         
         tokens = await AuthService.login(
             db,
-            login_data.email,
-            login_data.password,
+            user_email,
+            user_password,
             ip_address=ip_address,
             device_type=device_type,
             user_agent=user_agent,
