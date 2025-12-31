@@ -102,6 +102,80 @@ class Restaurant(Base):
     sgst_rate: Mapped[Optional[float]] = mapped_column(nullable=True)  # State GST
     igst_rate: Mapped[Optional[float]] = mapped_column(nullable=True)  # Integrated GST
     service_charge_percentage: Mapped[Optional[float]] = mapped_column(nullable=True)
+    vat_rate: Mapped[Optional[float]] = mapped_column(nullable=True)  # VAT for other countries
+    sales_tax_rate: Mapped[Optional[float]] = mapped_column(nullable=True)  # Sales tax
+    tax_number: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # Generic tax ID
+    
+    # Operating Hours Settings
+    opening_time: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)  # e.g., "09:00"
+    closing_time: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)  # e.g., "22:00"
+    is_24_hours: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    operating_days: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # {"monday": {"open": "09:00", "close": "22:00", "is_open": true}, ...}
+    holiday_mode: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    special_hours: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # Special hours for holidays/events
+    
+    # Payment Methods Settings
+    payment_methods_allowed: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # ["cash", "card", "upi", "wallet", "online"]
+    cash_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    card_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    upi_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    wallet_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    online_payment_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    
+    # Payment Gateway Settings
+    payment_gateway: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # "razorpay", "stripe", "paypal"
+    payment_gateway_key: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # API key (encrypted)
+    payment_gateway_secret: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # API secret (encrypted)
+    
+    # Order Settings
+    enable_online_ordering: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    enable_table_booking: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    enable_delivery: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    enable_takeaway: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    enable_dine_in: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    
+    # Delivery Settings
+    delivery_radius: Mapped[Optional[float]] = mapped_column(nullable=True)  # in km
+    delivery_charge: Mapped[Optional[float]] = mapped_column(nullable=True)  # base delivery charge
+    minimum_order_value: Mapped[Optional[float]] = mapped_column(nullable=True)  # minimum order for delivery
+    free_delivery_above: Mapped[Optional[float]] = mapped_column(nullable=True)  # free delivery threshold
+    
+    # Restaurant Capacity Settings
+    total_tables: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    total_seats: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    max_party_size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    
+    # Notification Settings
+    enable_email_notifications: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    enable_sms_notifications: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    enable_push_notifications: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    notification_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    notification_phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    
+    # Receipt & Invoice Settings
+    receipt_header: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    receipt_footer: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    invoice_prefix: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)  # e.g., "INV-"
+    invoice_counter: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    enable_auto_print: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    
+    # Social Media & Website
+    website_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    facebook_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    instagram_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    twitter_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    
+    # Additional Settings
+    allow_tips: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    default_tip_percentage: Mapped[Optional[float]] = mapped_column(nullable=True)
+    enable_loyalty_program: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    loyalty_points_per_currency: Mapped[Optional[float]] = mapped_column(nullable=True)  # e.g., 1 point per 100 INR
+    
+    # Kitchen Settings
+    enable_kot: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)  # Kitchen Order Ticket
+    enable_kds: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)  # Kitchen Display System
+    auto_accept_orders: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    preparation_time_buffer: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # minutes
     
     # Subscription & Billing
     subscription_plan: Mapped[SubscriptionPlanType] = mapped_column(

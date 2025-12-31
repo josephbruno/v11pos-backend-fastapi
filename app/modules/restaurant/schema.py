@@ -75,6 +75,75 @@ class RestaurantBase(BaseModel):
     sgst_rate: Optional[float] = None
     igst_rate: Optional[float] = None
     service_charge_percentage: Optional[float] = None
+    vat_rate: Optional[float] = None
+    sales_tax_rate: Optional[float] = None
+    tax_number: Optional[str] = None
+    
+    # Operating hours
+    opening_time: Optional[str] = Field(None, pattern="^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$")  # HH:MM format
+    closing_time: Optional[str] = Field(None, pattern="^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$")  # HH:MM format
+    is_24_hours: bool = False
+    operating_days: Optional[Dict] = None
+    holiday_mode: bool = False
+    special_hours: Optional[Dict] = None
+    
+    # Payment methods
+    payment_methods_allowed: Optional[List[str]] = None  # ["cash", "card", "upi", "wallet", "online"]
+    cash_enabled: bool = True
+    card_enabled: bool = True
+    upi_enabled: bool = True
+    wallet_enabled: bool = False
+    online_payment_enabled: bool = False
+    payment_gateway: Optional[str] = None
+    
+    # Order settings
+    enable_online_ordering: bool = False
+    enable_table_booking: bool = False
+    enable_delivery: bool = False
+    enable_takeaway: bool = True
+    enable_dine_in: bool = True
+    
+    # Delivery settings
+    delivery_radius: Optional[float] = None
+    delivery_charge: Optional[float] = None
+    minimum_order_value: Optional[float] = None
+    free_delivery_above: Optional[float] = None
+    
+    # Capacity
+    total_tables: Optional[int] = None
+    total_seats: Optional[int] = None
+    max_party_size: Optional[int] = None
+    
+    # Notifications
+    enable_email_notifications: bool = True
+    enable_sms_notifications: bool = False
+    enable_push_notifications: bool = True
+    notification_email: Optional[EmailStr] = None
+    notification_phone: Optional[str] = None
+    
+    # Receipt settings
+    receipt_header: Optional[str] = None
+    receipt_footer: Optional[str] = None
+    invoice_prefix: Optional[str] = None
+    enable_auto_print: bool = False
+    
+    # Social media
+    website_url: Optional[str] = None
+    facebook_url: Optional[str] = None
+    instagram_url: Optional[str] = None
+    twitter_url: Optional[str] = None
+    
+    # Additional settings
+    allow_tips: bool = True
+    default_tip_percentage: Optional[float] = None
+    enable_loyalty_program: bool = False
+    loyalty_points_per_currency: Optional[float] = None
+    
+    # Kitchen settings
+    enable_kot: bool = True
+    enable_kds: bool = False
+    auto_accept_orders: bool = False
+    preparation_time_buffer: Optional[int] = None
 
 
 class RestaurantCreate(RestaurantBase):
@@ -117,6 +186,75 @@ class RestaurantUpdate(BaseModel):
     sgst_rate: Optional[float] = None
     igst_rate: Optional[float] = None
     service_charge_percentage: Optional[float] = None
+    vat_rate: Optional[float] = None
+    sales_tax_rate: Optional[float] = None
+    tax_number: Optional[str] = None
+    
+    # Operating hours
+    opening_time: Optional[str] = None
+    closing_time: Optional[str] = None
+    is_24_hours: Optional[bool] = None
+    operating_days: Optional[Dict] = None
+    holiday_mode: Optional[bool] = None
+    special_hours: Optional[Dict] = None
+    
+    # Payment methods
+    payment_methods_allowed: Optional[List[str]] = None
+    cash_enabled: Optional[bool] = None
+    card_enabled: Optional[bool] = None
+    upi_enabled: Optional[bool] = None
+    wallet_enabled: Optional[bool] = None
+    online_payment_enabled: Optional[bool] = None
+    payment_gateway: Optional[str] = None
+    
+    # Order settings
+    enable_online_ordering: Optional[bool] = None
+    enable_table_booking: Optional[bool] = None
+    enable_delivery: Optional[bool] = None
+    enable_takeaway: Optional[bool] = None
+    enable_dine_in: Optional[bool] = None
+    
+    # Delivery settings
+    delivery_radius: Optional[float] = None
+    delivery_charge: Optional[float] = None
+    minimum_order_value: Optional[float] = None
+    free_delivery_above: Optional[float] = None
+    
+    # Capacity
+    total_tables: Optional[int] = None
+    total_seats: Optional[int] = None
+    max_party_size: Optional[int] = None
+    
+    # Notifications
+    enable_email_notifications: Optional[bool] = None
+    enable_sms_notifications: Optional[bool] = None
+    enable_push_notifications: Optional[bool] = None
+    notification_email: Optional[EmailStr] = None
+    notification_phone: Optional[str] = None
+    
+    # Receipt settings
+    receipt_header: Optional[str] = None
+    receipt_footer: Optional[str] = None
+    invoice_prefix: Optional[str] = None
+    enable_auto_print: Optional[bool] = None
+    
+    # Social media
+    website_url: Optional[str] = None
+    facebook_url: Optional[str] = None
+    instagram_url: Optional[str] = None
+    twitter_url: Optional[str] = None
+    
+    # Additional settings
+    allow_tips: Optional[bool] = None
+    default_tip_percentage: Optional[float] = None
+    enable_loyalty_program: Optional[bool] = None
+    loyalty_points_per_currency: Optional[float] = None
+    
+    # Kitchen settings
+    enable_kot: Optional[bool] = None
+    enable_kds: Optional[bool] = None
+    auto_accept_orders: Optional[bool] = None
+    preparation_time_buffer: Optional[int] = None
 
 
 class RestaurantResponse(BaseModel):
@@ -151,6 +289,77 @@ class RestaurantResponse(BaseModel):
     sgst_rate: Optional[float]
     igst_rate: Optional[float]
     service_charge_percentage: Optional[float]
+    vat_rate: Optional[float]
+    sales_tax_rate: Optional[float]
+    tax_number: Optional[str]
+    
+    # Operating hours
+    opening_time: Optional[str]
+    closing_time: Optional[str]
+    is_24_hours: bool
+    operating_days: Optional[Dict]
+    holiday_mode: bool
+    special_hours: Optional[Dict]
+    
+    # Payment methods
+    payment_methods_allowed: Optional[List[str]]
+    cash_enabled: bool
+    card_enabled: bool
+    upi_enabled: bool
+    wallet_enabled: bool
+    online_payment_enabled: bool
+    payment_gateway: Optional[str]
+    
+    # Order settings
+    enable_online_ordering: bool
+    enable_table_booking: bool
+    enable_delivery: bool
+    enable_takeaway: bool
+    enable_dine_in: bool
+    
+    # Delivery settings
+    delivery_radius: Optional[float]
+    delivery_charge: Optional[float]
+    minimum_order_value: Optional[float]
+    free_delivery_above: Optional[float]
+    
+    # Capacity
+    total_tables: Optional[int]
+    total_seats: Optional[int]
+    max_party_size: Optional[int]
+    
+    # Notifications
+    enable_email_notifications: bool
+    enable_sms_notifications: bool
+    enable_push_notifications: bool
+    notification_email: Optional[str]
+    notification_phone: Optional[str]
+    
+    # Receipt settings
+    receipt_header: Optional[str]
+    receipt_footer: Optional[str]
+    invoice_prefix: Optional[str]
+    invoice_counter: int
+    enable_auto_print: bool
+    
+    # Social media
+    website_url: Optional[str]
+    facebook_url: Optional[str]
+    instagram_url: Optional[str]
+    twitter_url: Optional[str]
+    
+    # Additional settings
+    allow_tips: bool
+    default_tip_percentage: Optional[float]
+    enable_loyalty_program: bool
+    loyalty_points_per_currency: Optional[float]
+    
+    # Kitchen settings
+    enable_kot: bool
+    enable_kds: bool
+    auto_accept_orders: bool
+    preparation_time_buffer: Optional[int]
+    
     subscription_plan: SubscriptionPlanType
     subscription_status: SubscriptionStatus
     trial_ends_at: Optional[datetime]
