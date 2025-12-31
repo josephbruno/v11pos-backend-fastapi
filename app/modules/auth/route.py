@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status, Request, Form
+from fastapi import APIRouter, Depends, status, Request, Form, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from app.core.database import get_db
@@ -77,17 +77,14 @@ def parse_user_agent(user_agent: str) -> dict:
 @router.post("/login", response_model=None)
 async def login(
     request: Request,
-    db: AsyncSession = Depends(get_db),
-    email: Optional[str] = Form(None),
-    password: Optional[str] = Form(None),
-    login_data: Optional[LoginRequest] = None
+    login_data: LoginRequest,
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Authenticate user and get access + refresh tokens
     
-    Supports both JSON and Form data:
+    Accepts JSON data:
     - JSON: {"email": "user@example.com", "password": "password123"}
-    - Form: email=user@example.com&password=password123
     
     Logs all login attempts with:
     - IP address
@@ -102,9 +99,8 @@ async def login(
     Returns access_token and refresh_token on success
     """
     try:
-        # Support both JSON and Form data
-        user_email = email if email else (login_data.email if login_data else None)
-        user_password = password if password else (login_data.password if login_data else None)
+        user_email = login_data.email
+        user_password = login_data.password
         
         if not user_email or not user_password:
             return error_response(

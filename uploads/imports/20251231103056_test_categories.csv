@@ -1,0 +1,4 @@
+name,slug,description,is_active,display_order,color_code,icon,is_featured,tax_rate
+Beverages,beverages,Hot and cold beverages,true,1,#FF5733,☕,true,5.0
+Main Course,main-course,Delicious main course dishes,true,2,#33FF57,🍽️,true,5.0
+Desserts,desserts,Sweet treats and desserts,true,3,#3357FF,🍰,true,5.0

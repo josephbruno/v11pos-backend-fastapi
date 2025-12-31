@@ -9,7 +9,7 @@ from pathlib import Path as FilePath
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
-from app.core.response import create_response
+from app.core.response import success_response, error_response
 from app.modules.data_import.schema import (
     DataImportCreate, DataImportUpdate, DataImportResponse,
     DataImportListResponse, ImportLogListResponse, ValidationResult,
@@ -19,7 +19,7 @@ from app.modules.data_import.schema import (
 from app.modules.data_import.service import DataImportService
 from app.modules.data_import.model import DataImport, ImportLog
 
-router = APIRouter(prefix="/api/v1/data-import", tags=["Data Import"])
+router = APIRouter(prefix="/data-import", tags=["Data Import"])
 
 # Upload directory
 UPLOAD_DIR = FilePath("uploads/imports")
@@ -50,10 +50,10 @@ async def upload_file_for_import(
     """
     
     # Check permissions
-    user_role = current_user.get("role")
-    user_restaurant_id = current_user.get("restaurant_id")
+    user_role = current_user.role
+    user_restaurant_id = current_user.restaurant_id
     
-    if user_role != "super_admin":
+    if user_role != "superadmin" and not current_user.is_superadmin:
         if restaurant_id != user_restaurant_id:
             raise HTTPException(status_code=403, detail="Access denied to this restaurant")
     
@@ -97,7 +97,7 @@ async def upload_file_for_import(
             file_path=str(file_path),
             file_size=file_size,
             file_format=file_format,
-            imported_by=current_user.get("id")
+            imported_by=current_user.id
         )
         
         # Read and validate file
@@ -133,9 +133,9 @@ async def upload_file_for_import(
             await db.commit()
             await db.refresh(data_import)
             
-            return create_response(
-                success=False,
+            return error_response(
                 message="Validation failed",
+                error_code="VALIDATION_FAILED",
                 data={
                     "import": DataImportResponse.model_validate(data_import),
                     "validation": validation_result
@@ -148,8 +148,7 @@ async def upload_file_for_import(
             await db.commit()
             await db.refresh(data_import)
             
-            return create_response(
-                success=True,
+            return success_response(
                 message="Validation successful",
                 data={
                     "import": DataImportResponse.model_validate(data_import),
@@ -198,9 +197,7 @@ async def upload_file_for_import(
         await db.commit()
         await db.refresh(data_import)
         
-        return create_response(
-            success=True,
-            message=f"Import completed: {result['stats']['imported']} created, {result['stats']['updated']} updated, {result['stats']['skipped']} skipped",
+        return success_response(message=f"Import completed: {result['stats']['imported']} created, {result['stats']['updated']} updated, {result['stats']['skipped']} skipped",
             data={
                 "import": DataImportResponse.model_validate(data_import),
                 "validation": validation_result
@@ -229,16 +226,14 @@ async def get_import(
         raise HTTPException(status_code=404, detail="Import not found")
     
     # Check permissions
-    user_role = current_user.get("role")
-    user_restaurant_id = current_user.get("restaurant_id")
+    user_role = current_user.role
+    user_restaurant_id = current_user.restaurant_id
     
-    if user_role != "super_admin":
+    if (user_role != "superadmin" and not current_user.is_superadmin):
         if data_import.restaurant_id != user_restaurant_id:
             raise HTTPException(status_code=403, detail="Access denied")
     
-    return create_response(
-        success=True,
-        message="Import retrieved successfully",
+    return success_response(message="Import retrieved successfully",
         data=DataImportResponse.model_validate(data_import)
     )
 
@@ -262,10 +257,10 @@ async def list_imports(
     """
     
     # Check permissions
-    user_role = current_user.get("role")
-    user_restaurant_id = current_user.get("restaurant_id")
+    user_role = current_user.role
+    user_restaurant_id = current_user.restaurant_id
     
-    if user_role != "super_admin":
+    if (user_role != "superadmin" and not current_user.is_superadmin):
         restaurant_id = user_restaurant_id
     
     imports, total = await DataImportService.list_imports(
@@ -277,9 +272,7 @@ async def list_imports(
         page_size=page_size
     )
     
-    return create_response(
-        success=True,
-        message="Imports retrieved successfully",
+    return success_response(message="Imports retrieved successfully",
         data=DataImportListResponse(
             total=total,
             page=page,
@@ -375,9 +368,7 @@ async def get_category_template_info(current_user: dict = Depends(get_current_us
         }
     }
     
-    return create_response(
-        success=True,
-        message="Category template information",
+    return success_response(message="Category template information",
         data=template_info
     )
 
@@ -458,9 +449,7 @@ async def get_product_template_info(current_user: dict = Depends(get_current_use
         }
     }
     
-    return create_response(
-        success=True,
-        message="Product template information",
+    return success_response(message="Product template information",
         data=template_info
     )
 
@@ -479,18 +468,16 @@ async def delete_import(
         raise HTTPException(status_code=404, detail="Import not found")
     
     # Check permissions
-    user_role = current_user.get("role")
-    user_restaurant_id = current_user.get("restaurant_id")
+    user_role = current_user.role
+    user_restaurant_id = current_user.restaurant_id
     
-    if user_role != "super_admin":
+    if (user_role != "superadmin" and not current_user.is_superadmin):
         if data_import.restaurant_id != user_restaurant_id:
             raise HTTPException(status_code=403, detail="Access denied")
     
     data_import.deleted_at = datetime.utcnow()
     await db.commit()
     
-    return create_response(
-        success=True,
-        message="Import deleted successfully",
+    return success_response(message="Import deleted successfully",
         data={"deleted": True}
     )

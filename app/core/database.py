@@ -1,6 +1,8 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy import DateTime
 from app.core.config import settings
+from datetime import datetime, timezone
 
 
 # Create async engine
@@ -22,9 +24,30 @@ AsyncSessionLocal = async_sessionmaker(
 )
 
 
+def utc_now():
+    """Get current UTC datetime"""
+    return datetime.now(timezone.utc)
+
+
 class Base(DeclarativeBase):
     """Base class for all database models"""
     pass
+
+
+class TimestampMixin:
+    """Mixin to add UTC timestamp fields to models"""
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=utc_now,
+        nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=utc_now,
+        onupdate=utc_now,
+        nullable=False
+    )
+
 
 
 async def get_db() -> AsyncSession:

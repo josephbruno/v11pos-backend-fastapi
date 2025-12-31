@@ -30,9 +30,11 @@ async def create_category(
     """Create a new category"""
     try:
         category = await CategoryService.create_category(db, category_data)
+        # Use current_user.timezone for automatic datetime conversion
         return success_response(
             message="Category created successfully",
-            data=CategoryResponse.model_validate(category).model_dump()
+            data=CategoryResponse.model_validate(category).model_dump(),
+            timezone=getattr(current_user, 'timezone', None)
         )
     except Exception as e:
         return error_response(
@@ -48,6 +50,7 @@ async def get_categories(
     active_only: bool = False,
     skip: int = 0,
     limit: int = 100,
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Get categories for a restaurant"""
@@ -59,9 +62,11 @@ async def get_categories(
             CategoryResponse.model_validate(c).model_dump()
             for c in categories
         ]
+        # Use current_user.timezone for automatic datetime conversion
         return success_response(
             message="Categories retrieved successfully",
-            data=categories_data
+            data=categories_data,
+            timezone=getattr(current_user, 'timezone', None)
         )
     except Exception as e:
         return error_response(
@@ -74,6 +79,7 @@ async def get_categories(
 @router.get("/categories/{category_id}")
 async def get_category(
     category_id: str,
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Get category by ID"""
@@ -86,19 +92,18 @@ async def get_category(
                 error_details=f"Category with ID {category_id} not found"
             )
         
+        # Use current_user.timezone for automatic datetime conversion
         return success_response(
             message="Category retrieved successfully",
-            data=CategoryResponse.model_validate(category).model_dump()
+            data=CategoryResponse.model_validate(category).model_dump(),
+            timezone=getattr(current_user, 'timezone', None)
         )
     except Exception as e:
         return error_response(
             message="Failed to retrieve category",
             error_code="INTERNAL_ERROR",
             error_details=str(e)
-        )
-
-
-@router.put("/categories/{category_id}")
+        )@router.put("/categories/{category_id}")
 async def update_category(
     category_id: str,
     category_data: CategoryUpdate,

@@ -12,7 +12,7 @@ from app.modules.data_copy.schema import (
 from app.modules.data_copy.service import DataCopyService
 from app.core.response import success_response, error_response
 
-router = APIRouter(prefix="/api/v1/data-copy", tags=["Data Copy"])
+router = APIRouter(prefix="/data-copy", tags=["Data Copy"])
 
 
 @router.post("/copy", response_model=dict, status_code=status.HTTP_201_CREATED)

@@ -1,6 +1,7 @@
 from typing import Any, Optional, Dict
 from pydantic import BaseModel
 from datetime import datetime
+from app.core.timezone import convert_datetime_fields, get_utc_now
 
 
 class ErrorDetail(BaseModel):
@@ -34,7 +35,8 @@ def success_response(
     message: str,
     data: Any = None,
     meta: Optional[Dict[str, Any]] = None,
-    status_code: int = 200
+    status_code: int = 200,
+    timezone: Optional[str] = None
 ) -> dict:
     """
     Create a success response following industry standards
@@ -44,6 +46,7 @@ def success_response(
         data: Response data (can be dict, list, or any serializable object)
         meta: Optional metadata (pagination info, etc.)
         status_code: HTTP status code (default: 200, use 201 for created)
+        timezone: Optional timezone for datetime conversion (if None, returns UTC)
         
     Returns:
         Standardized success response dictionary with format:
@@ -57,13 +60,17 @@ def success_response(
             "timestamp": "2024-01-01T12:00:00.000Z"
         }
     """
+    # Convert datetime fields to restaurant timezone if specified
+    if timezone and data:
+        data = convert_datetime_fields(data, timezone)
+    
     response = {
         "success": True,
         "status_code": status_code,
         "message": message,
         "data": data,
         "error": None,
-        "timestamp": datetime.utcnow().isoformat() + "Z"
+        "timestamp": get_utc_now().isoformat()
     }
     
     if meta:

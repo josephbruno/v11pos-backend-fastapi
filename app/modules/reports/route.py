@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
-from app.core.response import create_response
+from app.core.response import success_response, error_response
 from app.modules.reports.schema import (
     SalesReportCreate, SalesReportUpdate, SalesReportResponse,
     SalesReportListResponse, ItemWiseSalesReportResponse,
@@ -87,7 +87,7 @@ async def generate_sales_report(
                 sales_report_id=report.id
             )
         
-        return create_response(
+        return success_response(
             success=True,
             message="Sales report generated successfully",
             data=SalesReportResponse.model_validate(report)
@@ -117,7 +117,7 @@ async def get_sales_report(
         if report.restaurant_id != user_restaurant_id:
             raise HTTPException(status_code=403, detail="Access denied")
     
-    return create_response(
+    return success_response(
         success=True,
         message="Sales report retrieved successfully",
         data=SalesReportResponse.model_validate(report)
@@ -159,7 +159,7 @@ async def list_sales_reports(
         page_size=page_size
     )
     
-    return create_response(
+    return success_response(
         success=True,
         message="Sales reports retrieved successfully",
         data=SalesReportListResponse(
@@ -197,7 +197,7 @@ async def update_sales_report(
     # Update
     updated_report = await SalesReportService.update_sales_report(db, report_id, update_data)
     
-    return create_response(
+    return success_response(
         success=True,
         message="Sales report updated successfully",
         data=SalesReportResponse.model_validate(updated_report)
@@ -232,7 +232,7 @@ async def delete_sales_report(
     if not success:
         raise HTTPException(status_code=500, detail="Failed to delete sales report")
     
-    return create_response(
+    return success_response(
         success=True,
         message="Sales report deleted successfully",
         data={"deleted": True}
@@ -272,7 +272,7 @@ async def generate_item_wise_report(
         restaurant_id=restaurant_id
     )
     
-    return create_response(
+    return success_response(
         success=True,
         message=f"Item-wise sales report generated for {len(reports)} items",
         data=[ItemWiseSalesReportResponse.model_validate(r) for r in reports]
@@ -312,7 +312,7 @@ async def list_item_wise_reports(
         page_size=page_size
     )
     
-    return create_response(
+    return success_response(
         success=True,
         message="Item-wise sales reports retrieved successfully",
         data=ItemWiseSalesReportListResponse(
@@ -357,7 +357,7 @@ async def generate_category_wise_report(
         restaurant_id=restaurant_id
     )
     
-    return create_response(
+    return success_response(
         success=True,
         message=f"Category-wise sales report generated for {len(reports)} categories",
         data=[CategoryWiseSalesReportResponse.model_validate(r) for r in reports]
@@ -397,7 +397,7 @@ async def list_category_wise_reports(
         page_size=page_size
     )
     
-    return create_response(
+    return success_response(
         success=True,
         message="Category-wise sales reports retrieved successfully",
         data=CategoryWiseSalesReportListResponse(
@@ -437,7 +437,7 @@ async def get_payment_mode_report(
     
     # TODO: Implement payment mode report service
     
-    return create_response(
+    return success_response(
         success=True,
         message="Payment mode report retrieved successfully",
         data={"message": "Payment mode report - to be implemented"}
@@ -469,7 +469,7 @@ async def get_tax_gst_report(
     
     # TODO: Implement tax report service
     
-    return create_response(
+    return success_response(
         success=True,
         message="Tax report retrieved successfully",
         data={"message": "Tax (GST) report - to be implemented"}
@@ -501,7 +501,7 @@ async def get_discounts_offers_report(
     
     # TODO: Implement discount report service
     
-    return create_response(
+    return success_response(
         success=True,
         message="Discounts & offers report retrieved successfully",
         data={"message": "Discounts & offers report - to be implemented"}
@@ -533,7 +533,7 @@ async def get_cancelled_void_report(
     
     # TODO: Implement cancelled/void report service
     
-    return create_response(
+    return success_response(
         success=True,
         message="Cancelled/void orders report retrieved successfully",
         data={"message": "Cancelled/void orders report - to be implemented"}
@@ -565,7 +565,7 @@ async def get_profit_cost_analysis(
     
     # TODO: Implement profit/cost analysis service
     
-    return create_response(
+    return success_response(
         success=True,
         message="Profit & cost analysis retrieved successfully",
         data={"message": "Profit & cost analysis - to be implemented"}
@@ -601,7 +601,7 @@ async def get_super_admin_dashboard(
     
     # TODO: Implement super admin dashboard aggregation
     
-    return create_response(
+    return success_response(
         success=True,
         message="Super admin dashboard retrieved successfully",
         data={
@@ -647,7 +647,7 @@ async def get_restaurant_dashboard(
     
     # TODO: Implement restaurant dashboard
     
-    return create_response(
+    return success_response(
         success=True,
         message="Restaurant dashboard retrieved successfully",
         data={
