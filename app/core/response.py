@@ -22,6 +22,7 @@ class MetaData(BaseModel):
 class APIResponse(BaseModel):
     """Standard API response format"""
     success: bool  # true for success, false for error
+    status_code: int  # HTTP status code (200, 201, 400, 404, 500, etc.)
     message: str
     data: Optional[Any] = None
     error: Optional[ErrorDetail] = None
@@ -32,7 +33,8 @@ class APIResponse(BaseModel):
 def success_response(
     message: str,
     data: Any = None,
-    meta: Optional[Dict[str, Any]] = None
+    meta: Optional[Dict[str, Any]] = None,
+    status_code: int = 200
 ) -> dict:
     """
     Create a success response following industry standards
@@ -41,11 +43,13 @@ def success_response(
         message: Success message
         data: Response data (can be dict, list, or any serializable object)
         meta: Optional metadata (pagination info, etc.)
+        status_code: HTTP status code (default: 200, use 201 for created)
         
     Returns:
         Standardized success response dictionary with format:
         {
             "success": true,
+            "status_code": 200,
             "message": "Operation successful",
             "data": {...},
             "error": null,
@@ -55,6 +59,7 @@ def success_response(
     """
     response = {
         "success": True,
+        "status_code": status_code,
         "message": message,
         "data": data,
         "error": None,
@@ -72,7 +77,8 @@ def error_response(
     error_code: str,
     error_details: Optional[str] = None,
     data: Any = None,
-    field: Optional[str] = None
+    field: Optional[str] = None,
+    status_code: int = 400
 ) -> dict:
     """
     Create an error response following industry standards
@@ -83,11 +89,13 @@ def error_response(
         error_details: Detailed technical error information (optional)
         data: Optional data (usually None for errors)
         field: Specific field that caused the error (for validation errors)
+        status_code: HTTP status code (default: 400, use 401, 404, 500, etc.)
         
     Returns:
         Standardized error response dictionary with format:
         {
             "success": false,
+            "status_code": 400,
             "message": "User-friendly message",
             "data": null,
             "error": {
@@ -101,6 +109,7 @@ def error_response(
     """
     return {
         "success": False,
+        "status_code": status_code,
         "message": message,
         "data": data,
         "error": {
@@ -149,7 +158,8 @@ def paginated_response(
 
 def validation_error_response(
     message: str = "Validation failed",
-    errors: list = None
+    errors: list = None,
+    status_code: int = 422
 ) -> dict:
     """
     Create a validation error response for multiple field errors
@@ -157,12 +167,14 @@ def validation_error_response(
     Args:
         message: Error message
         errors: List of validation errors [{"field": "email", "message": "Invalid format"}]
+        status_code: HTTP status code (default: 422 Unprocessable Entity)
         
     Returns:
         Standardized validation error response
     """
     return {
         "success": False,
+        "status_code": status_code,
         "message": message,
         "data": None,
         "error": {
