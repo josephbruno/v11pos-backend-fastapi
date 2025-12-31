@@ -12,7 +12,7 @@ All API endpoints follow a **consistent, standardized response format** that pro
 
 ```json
 {
-  "status": "success",
+  "success": true,
   "message": "Operation successful",
   "data": {
     // Response data (object, array, or any JSON-serializable value)
@@ -33,7 +33,7 @@ All API endpoints follow a **consistent, standardized response format** that pro
 
 ```json
 {
-  "status": "error",
+  "success": false,
   "message": "User-friendly error message",
   "data": null,
   "error": {
@@ -52,7 +52,7 @@ All API endpoints follow a **consistent, standardized response format** that pro
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `status` | string | **"success"** or **"error"** - Indicates operation result |
+| `success` | boolean | **true** for successful operations, **false** for errors |
 | `message` | string | Human-readable description of the result |
 | `data` | any | Response payload (null for errors) |
 | `error` | object/null | Error details (null for success) |
@@ -87,7 +87,7 @@ All API endpoints follow a **consistent, standardized response format** that pro
 
 ```json
 {
-  "status": "success",
+  "success": true,
   "message": "Login successful",
   "data": {
     "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
@@ -106,7 +106,7 @@ All API endpoints follow a **consistent, standardized response format** that pro
 
 ```json
 {
-  "status": "success",
+  "success": true,
   "message": "Products retrieved successfully",
   "data": [
     {
@@ -139,7 +139,7 @@ All API endpoints follow a **consistent, standardized response format** that pro
 
 ```json
 {
-  "status": "success",
+  "success": true,
   "message": "Restaurant retrieved successfully",
   "data": {
     "id": "3c2835af-1ff2-4714-8191-c4c1f5b2246f",
@@ -163,7 +163,7 @@ All API endpoints follow a **consistent, standardized response format** that pro
 
 ```json
 {
-  "status": "success",
+  "success": true,
   "message": "Customer created successfully",
   "data": {
     "id": "456e7890-e89b-12d3-a456-426614174002",
@@ -184,7 +184,7 @@ All API endpoints follow a **consistent, standardized response format** that pro
 
 ```json
 {
-  "status": "error",
+  "success": false,
   "message": "Login failed",
   "data": null,
   "error": {
@@ -203,7 +203,7 @@ All API endpoints follow a **consistent, standardized response format** that pro
 
 ```json
 {
-  "status": "error",
+  "success": false,
   "message": "Validation failed",
   "data": null,
   "error": {
@@ -231,7 +231,7 @@ All API endpoints follow a **consistent, standardized response format** that pro
 
 ```json
 {
-  "status": "error",
+  "success": false,
   "message": "Product not found",
   "data": null,
   "error": {
@@ -250,7 +250,7 @@ All API endpoints follow a **consistent, standardized response format** that pro
 
 ```json
 {
-  "status": "error",
+  "success": false,
   "message": "Restaurant creation failed",
   "data": null,
   "error": {
@@ -269,7 +269,7 @@ All API endpoints follow a **consistent, standardized response format** that pro
 
 ```json
 {
-  "status": "error",
+  "success": false,
   "message": "Access denied",
   "data": null,
   "error": {
@@ -288,7 +288,7 @@ All API endpoints follow a **consistent, standardized response format** that pro
 
 ```json
 {
-  "status": "error",
+  "success": false,
   "message": "Internal server error",
   "data": null,
   "error": {
@@ -322,18 +322,18 @@ All API endpoints follow a **consistent, standardized response format** that pro
 
 ## HTTP Status Code Mapping
 
-| HTTP Status | Status Field | Use Case |
-|-------------|--------------|----------|
-| 200 | success | Successful GET, PUT, PATCH |
-| 201 | success | Successful POST (created) |
-| 204 | success | Successful DELETE (no content) |
-| 400 | error | Bad request / validation error |
-| 401 | error | Authentication failed |
-| 403 | error | Authorization failed |
-| 404 | error | Resource not found |
-| 409 | error | Conflict / duplicate entry |
-| 422 | error | Unprocessable entity |
-| 500 | error | Internal server error |
+| HTTP Status | Success Field | Use Case |
+|-------------|---------------|----------|
+| 200 | true | Successful GET, PUT, PATCH |
+| 201 | true | Successful POST (created) |
+| 204 | true | Successful DELETE (no content) |
+| 400 | false | Bad request / validation error |
+| 401 | false | Authentication failed |
+| 403 | false | Authorization failed |
+| 404 | false | Resource not found |
+| 409 | false | Conflict / duplicate entry |
+| 422 | false | Unprocessable entity |
+| 500 | false | Internal server error |
 
 ---
 
@@ -402,17 +402,19 @@ return validation_error_response(
 2. **Provide clear messages** - Make error messages user-friendly
 3. **Include error codes** - Use consistent, uppercase error codes
 4. **Add technical details** - Include debugging info in `error.details`
-5. **Use appropriate HTTP status codes** - Match the response status
+5. **Use appropriate HTTP status codes** - Match the response success field
 6. **Include timestamps** - Automatically added to all responses
 7. **Support pagination** - Use `meta` for list endpoints
 8. **Validate input** - Return proper validation errors with field names
+9. **Check success field** - Use `success === true` or `success === false` for status checking
 
 ---
 
 ## Benefits
 
 ✅ **Consistency** - All endpoints follow the same format  
-✅ **Clear Status** - Easy to identify success/failure  
+✅ **Boolean Status** - Easy to check `success === true/false`  
+✅ **Clear Status** - Immediate identification of success/failure  
 ✅ **Error Handling** - Structured error information  
 ✅ **Machine & Human Readable** - Error codes + messages  
 ✅ **Debugging** - Technical details included  
@@ -425,15 +427,15 @@ return validation_error_response(
 ## Migration Notes
 
 **Breaking Changes:**
-- `success` field renamed to `status` (values: "success" or "error")
+- Response uses boolean `success` field (true/false) instead of string status
 - `error` object structure enhanced with `message` and `field` support
 - `timestamp` added to all responses
 - `meta` support added for pagination
 
 **Backward Compatibility:**
 - All endpoints updated to use the new format
-- Test scripts should check `status === "success"` instead of `success === true`
-- Client applications need to update response parsing logic
+- Test scripts should check `success === true` instead of checking string values
+- Client applications need to update response parsing logic to use boolean checks
 
 ---
 

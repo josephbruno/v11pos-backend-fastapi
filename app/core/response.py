@@ -21,7 +21,7 @@ class MetaData(BaseModel):
 
 class APIResponse(BaseModel):
     """Standard API response format"""
-    status: str  # "success" or "error"
+    success: bool  # true for success, false for error
     message: str
     data: Optional[Any] = None
     error: Optional[ErrorDetail] = None
@@ -45,16 +45,16 @@ def success_response(
     Returns:
         Standardized success response dictionary with format:
         {
-            "status": "success",
+            "success": true,
             "message": "Operation successful",
             "data": {...},
-            "error": None,
+            "error": null,
             "meta": {...},
             "timestamp": "2024-01-01T12:00:00.000Z"
         }
     """
     response = {
-        "status": "success",
+        "success": True,
         "message": message,
         "data": data,
         "error": None,
@@ -87,9 +87,9 @@ def error_response(
     Returns:
         Standardized error response dictionary with format:
         {
-            "status": "error",
+            "success": false,
             "message": "User-friendly message",
-            "data": None,
+            "data": null,
             "error": {
                 "code": "ERROR_CODE",
                 "message": "User-friendly error message",
@@ -100,7 +100,7 @@ def error_response(
         }
     """
     return {
-        "status": "error",
+        "success": False,
         "message": message,
         "data": data,
         "error": {
@@ -162,7 +162,7 @@ def validation_error_response(
         Standardized validation error response
     """
     return {
-        "status": "error",
+        "success": False,
         "message": message,
         "data": None,
         "error": {
