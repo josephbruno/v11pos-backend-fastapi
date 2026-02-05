@@ -190,12 +190,33 @@ async def update_user(
     Update user (requires authentication)
     """
     try:
-        # Check if user is updating their own profile or is superuser
-        if current_user.id != user_id and not current_user.is_superuser:
+        # Fetch target user first to check permissions
+        target_user = await UserService.get_user_by_id(db, user_id)
+        if not target_user:
+            return error_response(
+                message="User not found",
+                error_code="USER_NOT_FOUND",
+                error_details=f"User with ID {user_id} does not exist",
+                status_code=404
+            )
+
+        # Permission Check
+        is_self = current_user.id == target_user.id
+        is_superuser = current_user.is_superuser or current_user.is_superadmin
+        
+        # Check if restaurant admin (owner/manager) updating a user in same restaurant
+        is_restaurant_admin = (
+            current_user.restaurant_id is not None and
+            target_user.restaurant_id == current_user.restaurant_id and
+            current_user.role in ['owner', 'admin', 'manager']
+        )
+        
+        if not (is_self or is_superuser or is_restaurant_admin):
             return error_response(
                 message="Update failed",
                 error_code="FORBIDDEN",
-                error_details="You can only update your own profile"
+                error_details="You do not have permission to update this user",
+                status_code=403
             )
         
         user = await UserService.update_user(db, user_id, user_data)
@@ -235,11 +256,33 @@ async def delete_user(
     Delete user (requires superuser privileges)
     """
     try:
-        if not current_user.is_superuser:
+        # Fetch target user first to check permissions
+        target_user = await UserService.get_user_by_id(db, user_id)
+        if not target_user:
+            return error_response(
+                message="User not found",
+                error_code="USER_NOT_FOUND",
+                error_details=f"User with ID {user_id} does not exist",
+                status_code=404
+            )
+
+        # Permission Check
+        is_self = current_user.id == target_user.id
+        is_superuser = current_user.is_superuser or current_user.is_superadmin
+        
+        # Check if restaurant admin (owner/manager) deleting a user in same restaurant
+        is_restaurant_admin = (
+            current_user.restaurant_id is not None and
+            target_user.restaurant_id == current_user.restaurant_id and
+            current_user.role in ['owner', 'admin', 'manager']
+        )
+        
+        if not (is_superuser or is_restaurant_admin):
             return error_response(
                 message="Delete failed",
                 error_code="FORBIDDEN",
-                error_details="Only superusers can delete users"
+                error_details="You do not have permission to delete this user",
+                status_code=403
             )
         
         deleted = await UserService.delete_user(db, user_id)

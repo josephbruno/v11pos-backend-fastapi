@@ -98,11 +98,11 @@ async def get_customers(
     )
     
     return success_response(
-        data={
+        data=[CustomerResponse.model_validate(c) for c in customers],
+        meta={
             "total": total,
             "skip": skip,
-            "limit": limit,
-            "customers": [CustomerResponse.model_validate(c) for c in customers]
+            "limit": limit
         },
         message="Customers retrieved successfully"
     )
@@ -186,11 +186,11 @@ async def search_customers_by_location(
     )
     
     return success_response(
-        data={
+        data=[CustomerResponse.model_validate(c) for c in customers],
+        meta={
             "total": len(customers),
             "center": {"latitude": latitude, "longitude": longitude},
-            "radius_km": radius_km,
-            "customers": [CustomerResponse.model_validate(c) for c in customers]
+            "radius_km": radius_km
         },
         message="Customers retrieved successfully"
     )

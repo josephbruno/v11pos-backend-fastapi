@@ -77,14 +77,14 @@ def parse_user_agent(user_agent: str) -> dict:
 @router.post("/login", response_model=None)
 async def login(
     request: Request,
-    login_data: LoginRequest,
     db: AsyncSession = Depends(get_db)
 ):
     """
     Authenticate user and get access + refresh tokens
     
-    Accepts JSON data:
+    Accepts both JSON and form-encoded data:
     - JSON: {"email": "user@example.com", "password": "password123"}
+    - Form: email=user@example.com&password=password123
     
     Logs all login attempts with:
     - IP address
@@ -99,14 +99,53 @@ async def login(
     Returns access_token and refresh_token on success
     """
     try:
-        user_email = login_data.email
-        user_password = login_data.password
+        user_email = None
+        user_password = None
         
+        # Check content type and parse accordingly
+        content_type = request.headers.get("content-type", "").lower()
+        
+        if "application/json" in content_type:
+            # Parse JSON body
+            try:
+                body = await request.json()
+                user_email = body.get("email")
+                user_password = body.get("password")
+            except Exception:
+                return error_response(
+                    message="Invalid JSON",
+                    error_code="INVALID_JSON",
+                    error_details="Request body must be valid JSON",
+                    status_code=400
+                )
+        elif "application/x-www-form-urlencoded" in content_type or "multipart/form-data" in content_type:
+            # Parse form data
+            try:
+                form = await request.form()
+                user_email = form.get("email")
+                user_password = form.get("password")
+            except Exception:
+                return error_response(
+                    message="Invalid form data",
+                    error_code="INVALID_FORM",
+                    error_details="Request body must be valid form data",
+                    status_code=400
+                )
+        else:
+            return error_response(
+                message="Unsupported content type",
+                error_code="UNSUPPORTED_CONTENT_TYPE",
+                error_details="Content-Type must be application/json or application/x-www-form-urlencoded",
+                status_code=400
+            )
+        
+        # Validate credentials are provided
         if not user_email or not user_password:
             return error_response(
                 message="Missing credentials",
                 error_code="MISSING_CREDENTIALS",
-                error_details="Email and password are required"
+                error_details="Email and password are required",
+                status_code=400
             )
         
         # Extract request metadata

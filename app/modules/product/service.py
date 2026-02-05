@@ -2,7 +2,8 @@
 Product catalog and inventory service layer
 """
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_, or_, func
+from sqlalchemy.orm import joinedload
 from typing import Optional, List
 from datetime import datetime
 
@@ -22,16 +23,51 @@ from app.modules.product.schema import (
 )
 
 
+
+class DuplicateError(Exception):
+    def __init__(self, message: str, field: str = None):
+        self.message = message
+        self.field = field
+        super().__init__(message)
+
+
 class CategoryService:
     """Service for category operations"""
     
     @staticmethod
     async def create_category(db: AsyncSession, category_data: CategoryCreate) -> Category:
         """Create a new category"""
+        # Check uniqueness: Name
+        stmt = select(Category).where(
+            Category.restaurant_id == category_data.restaurant_id,
+            func.lower(Category.name) == func.lower(category_data.name),
+            Category.deleted_at.is_(None)
+        )
+        if await db.scalar(stmt):
+            raise DuplicateError("Category with this name already exists in this restaurant", field="name")
+            
+        # Check uniqueness: Slug
+        stmt = select(Category).where(
+            Category.restaurant_id == category_data.restaurant_id,
+            Category.slug == category_data.slug,
+            Category.deleted_at.is_(None)
+        )
+        if await db.scalar(stmt):
+            raise DuplicateError("Category with this slug already exists in this restaurant", field="slug")
+
         category = Category(**category_data.model_dump())
         db.add(category)
         await db.commit()
-        await db.refresh(category)
+        
+        # Load with restaurant for name
+        result = await db.execute(
+            select(Category)
+            .options(joinedload(Category.restaurant))
+            .where(Category.id == category.id)
+        )
+        category = result.scalar_one()
+        category.restaurant_name = category.restaurant.name
+        
         return category
     
     @staticmethod
@@ -49,7 +85,10 @@ class CategoryService:
         limit: int = 100
     ) -> List[Category]:
         """Get categories by restaurant"""
-        query = select(Category).where(Category.restaurant_id == restaurant_id)
+        query = select(Category).where(
+            Category.restaurant_id == restaurant_id,
+            Category.deleted_at.is_(None)
+        )
         
         if active_only:
             query = query.where(Category.active == True)
@@ -70,6 +109,28 @@ class CategoryService:
         
         if not category:
             return None
+            
+        # Check uniqueness if name is updated
+        if category_data.name:
+            stmt = select(Category).where(
+                Category.restaurant_id == category.restaurant_id,
+                Category.id != category_id,
+                func.lower(Category.name) == func.lower(category_data.name),
+                Category.deleted_at.is_(None)
+            )
+            if await db.scalar(stmt):
+                 raise DuplicateError("Category with this name already exists in this restaurant", field="name")
+
+        # Check uniqueness if slug is updated
+        if category_data.slug:
+            stmt = select(Category).where(
+                Category.restaurant_id == category.restaurant_id,
+                Category.id != category_id,
+                Category.slug == category_data.slug,
+                Category.deleted_at.is_(None)
+            )
+            if await db.scalar(stmt):
+                 raise DuplicateError("Category with this slug already exists in this restaurant", field="slug")
         
         update_data = category_data.model_dump(exclude_unset=True)
         for field, value in update_data.items():
@@ -81,14 +142,14 @@ class CategoryService:
     
     @staticmethod
     async def delete_category(db: AsyncSession, category_id: str) -> bool:
-        """Delete category"""
+        """Soft delete category"""
         result = await db.execute(select(Category).where(Category.id == category_id))
         category = result.scalar_one_or_none()
         
         if not category:
             return False
         
-        await db.delete(category)
+        category.deleted_at = datetime.utcnow()
         await db.commit()
         return True
 

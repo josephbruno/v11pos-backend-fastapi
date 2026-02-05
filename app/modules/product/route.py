@@ -12,7 +12,7 @@ from app.modules.user.model import User
 from app.modules.product.schema import *
 from app.modules.product.service import (
     CategoryService, ProductService, ModifierService,
-    InventoryService, ComboProductService
+    InventoryService, ComboProductService, DuplicateError
 )
 
 
@@ -35,6 +35,14 @@ async def create_category(
             message="Category created successfully",
             data=CategoryResponse.model_validate(category).model_dump(),
             timezone=getattr(current_user, 'timezone', None)
+        )
+    except DuplicateError as e:
+        return error_response(
+            message="Failed to create category",
+            error_code="DUPLICATE_ENTRY",
+            error_details=str(e),
+            field=e.field,
+            status_code=status.HTTP_409_CONFLICT
         )
     except Exception as e:
         return error_response(
@@ -103,7 +111,11 @@ async def get_category(
             message="Failed to retrieve category",
             error_code="INTERNAL_ERROR",
             error_details=str(e)
-        )@router.put("/categories/{category_id}")
+        )
+
+@router.post("/categories/{category_id}")
+@router.patch("/categories/{category_id}")
+@router.put("/categories/{category_id}")
 async def update_category(
     category_id: str,
     category_data: CategoryUpdate,
@@ -123,6 +135,14 @@ async def update_category(
         return success_response(
             message="Category updated successfully",
             data=CategoryResponse.model_validate(category).model_dump()
+        )
+    except DuplicateError as e:
+        return error_response(
+            message="Failed to update category",
+            error_code="DUPLICATE_ENTRY",
+            error_details=str(e),
+            field=e.field,
+            status_code=status.HTTP_409_CONFLICT
         )
     except Exception as e:
         return error_response(

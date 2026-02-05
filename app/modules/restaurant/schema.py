@@ -145,6 +145,13 @@ class RestaurantBase(BaseModel):
     auto_accept_orders: bool = False
     preparation_time_buffer: Optional[int] = None
 
+    @field_validator('business_type', mode='before')
+    @classmethod
+    def case_insensitive_business_type(cls, v):
+        if isinstance(v, str):
+            return v.lower()
+        return v
+
 
 class RestaurantCreate(RestaurantBase):
     """Schema for creating a restaurant"""

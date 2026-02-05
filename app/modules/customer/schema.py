@@ -20,7 +20,7 @@ class CustomerBase(BaseModel):
 
 class CustomerCreate(CustomerBase):
     """Schema for creating a customer"""
-    pass
+    is_active: bool = True
 
 
 class CustomerUpdate(BaseModel):

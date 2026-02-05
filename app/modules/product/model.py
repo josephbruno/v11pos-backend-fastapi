@@ -131,6 +131,9 @@ class Category(Base):
     )
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)  # Soft delete
     
+    # Relationships
+    restaurant: Mapped["Restaurant"] = relationship("app.modules.restaurant.model.Restaurant")
+    
     def __repr__(self):
         return f"<Category(id={self.id}, name='{self.name}', restaurant_id={self.restaurant_id})>"
 

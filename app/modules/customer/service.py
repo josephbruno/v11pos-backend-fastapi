@@ -31,7 +31,8 @@ class CustomerService:
             country=customer_data.country,
             latitude=customer_data.latitude,
             longitude=customer_data.longitude,
-            notes=customer_data.notes
+            notes=customer_data.notes,
+            is_active=customer_data.is_active
         )
         
         db.add(db_customer)

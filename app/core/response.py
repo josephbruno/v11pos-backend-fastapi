@@ -1,6 +1,8 @@
 from typing import Any, Optional, Dict
 from pydantic import BaseModel
 from datetime import datetime
+from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
 from app.core.timezone import convert_datetime_fields, get_utc_now
 
 
@@ -37,7 +39,7 @@ def success_response(
     meta: Optional[Dict[str, Any]] = None,
     status_code: int = 200,
     timezone: Optional[str] = None
-) -> dict:
+) -> JSONResponse:
     """
     Create a success response following industry standards
     
@@ -49,7 +51,7 @@ def success_response(
         timezone: Optional timezone for datetime conversion (if None, returns UTC)
         
     Returns:
-        Standardized success response dictionary with format:
+        JSONResponse with standardized success response format:
         {
             "success": true,
             "status_code": 200,
@@ -68,15 +70,15 @@ def success_response(
         "success": True,
         "status_code": status_code,
         "message": message,
-        "data": data,
+        "data": jsonable_encoder(data),
         "error": None,
         "timestamp": get_utc_now().isoformat()
     }
     
     if meta:
-        response["meta"] = meta
+        response["meta"] = jsonable_encoder(meta)
     
-    return response
+    return JSONResponse(content=response, status_code=status_code)
 
 
 def error_response(
@@ -86,7 +88,7 @@ def error_response(
     data: Any = None,
     field: Optional[str] = None,
     status_code: int = 400
-) -> dict:
+) -> JSONResponse:
     """
     Create an error response following industry standards
     
@@ -99,7 +101,7 @@ def error_response(
         status_code: HTTP status code (default: 400, use 401, 404, 500, etc.)
         
     Returns:
-        Standardized error response dictionary with format:
+        JSONResponse with standardized error response format:
         {
             "success": false,
             "status_code": 400,
@@ -114,11 +116,11 @@ def error_response(
             "timestamp": "2024-01-01T12:00:00.000Z"
         }
     """
-    return {
+    response_content = {
         "success": False,
         "status_code": status_code,
         "message": message,
-        "data": data,
+        "data": jsonable_encoder(data),
         "error": {
             "code": error_code,
             "message": message,
@@ -127,6 +129,8 @@ def error_response(
         },
         "timestamp": datetime.utcnow().isoformat() + "Z"
     }
+    
+    return JSONResponse(content=response_content, status_code=status_code)
 
 
 def paginated_response(
@@ -167,7 +171,7 @@ def validation_error_response(
     message: str = "Validation failed",
     errors: list = None,
     status_code: int = 422
-) -> dict:
+) -> JSONResponse:
     """
     Create a validation error response for multiple field errors
     
@@ -177,9 +181,9 @@ def validation_error_response(
         status_code: HTTP status code (default: 422 Unprocessable Entity)
         
     Returns:
-        Standardized validation error response
+        JSONResponse with standardized validation error response
     """
-    return {
+    response_content = {
         "success": False,
         "status_code": status_code,
         "message": message,
@@ -192,3 +196,5 @@ def validation_error_response(
         },
         "timestamp": datetime.utcnow().isoformat() + "Z"
     }
+    
+    return JSONResponse(content=response_content, status_code=status_code)
