@@ -1,0 +1,4 @@
+status_code: 200
+response_time: 0.206s
+response_body:
+{"success":true,"status_code":200,"message":"Modifier deleted successfully","data":{"deleted_modifier_id":"5032e2e0-d632-4cc6-ac8a-e9ff831ab0c3"},"error":null,"timestamp":"2026-03-16T09:13:55.744119+00:00"}

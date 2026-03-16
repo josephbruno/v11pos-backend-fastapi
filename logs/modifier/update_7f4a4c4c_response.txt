@@ -1,0 +1,4 @@
+status_code: 200
+response_time: 0.371s
+response_body:
+{"success":true,"status_code":200,"message":"Modifier updated successfully","data":{"name":"Mod-f0be13-updated","type":"single","category":"add-ons","required":false,"min_selections":0,"max_selections":null,"icon_url":"http://localhost:9000/uploads/modifiers/5b417c6347a74ee3bcc60ec1ae9e52c8.jpg","id":"61b5accd-a62f-41c2-ba82-e6742f27dc45","restaurant_id":"21141f75-7710-489c-acb7-882ff7ff8ec4","created_at":"2026-03-16T09:05:35","updated_at":"2026-03-16T09:05:36"},"error":null,"timestamp":"2026-03-16T09:05:35.876310+00:00"}

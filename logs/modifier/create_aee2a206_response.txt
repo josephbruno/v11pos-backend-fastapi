@@ -1,0 +1,4 @@
+status_code: 200
+response_time: 0.320s
+response_body:
+{"success":true,"status_code":200,"message":"Modifier created successfully","data":{"name":"Mod-1722f7","type":"single","category":"add-ons","required":false,"min_selections":0,"max_selections":null,"icon_url":"http://localhost:9000/uploads/modifiers/a74c54e05d73417281a50eb4e6b67fa4.jpg","id":"a3a54bcd-153f-467e-a5e0-452ec24d8a84","restaurant_id":"21141f75-7710-489c-acb7-882ff7ff8ec4","created_at":"2026-03-16T09:10:47","updated_at":"2026-03-16T09:10:47"},"error":null,"timestamp":"2026-03-16T09:10:46.753865+00:00"}

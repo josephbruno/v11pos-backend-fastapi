@@ -1,0 +1,6 @@
+endpoint: http://localhost:8000/api/v1/products/844bd95f-d26b-454c-9fe3-aab5087f9c47
+method: PUT
+headers:
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxYzQ2YzQ3Zi0yMDJiLTExZjEtYmFkNC0xNmU4ZDRhYjFlZGIiLCJleHAiOjE3NzM2NTM3MzEsInR5cGUiOiJhY2Nlc3MifQ.2xgheJTkdM5OOzSszTUZJS3NVTanI_pPqXII42ombnU
+payload:
+{"fields": {"description": "Updated product image"}, "files": {"image": "d82b98a0834e4093a49b989685409d5f.jpg"}}

@@ -1,0 +1,6 @@
+endpoint: http://localhost:8000/api/v1/products/modifiers
+method: POST
+headers:
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxYzQ2YzQ3Zi0yMDJiLTExZjEtYmFkNC0xNmU4ZDRhYjFlZGIiLCJleHAiOjE3NzM2NTQyMzAsInR5cGUiOiJhY2Nlc3MifQ.TUv9y-iVbgVJkjILVgOnIsHqTeX2heIiYSucBdQi1LE
+payload:
+{"fields": {"restaurant_id": "21141f75-7710-489c-acb7-882ff7ff8ec4", "name": "Mod-305c7e", "type": "single"}, "files": {"icon": "482a3a6fc33c4f21a410b47b432b53c5.jpg"}}

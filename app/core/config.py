@@ -20,6 +20,16 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+    # MinIO (S3-compatible) Storage Configuration
+    # Change MINIO_BUCKET in .env to switch upload bucket
+    MINIO_ENDPOINT: str
+    MINIO_ACCESS_KEY: str
+    MINIO_SECRET_KEY: str
+    MINIO_BUCKET: str = "uploads"
+    MINIO_SECURE: bool = False
+    # Optional public endpoint for URL generation (defaults to MINIO_ENDPOINT)
+    MINIO_PUBLIC_ENDPOINT: str | None = None
     
     model_config = SettingsConfigDict(
         env_file=".env",

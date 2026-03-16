@@ -269,6 +269,26 @@ class ModifierService:
         await db.commit()
         await db.refresh(modifier)
         return modifier
+
+    @staticmethod
+    async def update_modifier(
+        db: AsyncSession,
+        modifier_id: str,
+        modifier_data: ModifierUpdate
+    ) -> Optional[Modifier]:
+        """Update modifier"""
+        result = await db.execute(select(Modifier).where(Modifier.id == modifier_id))
+        modifier = result.scalar_one_or_none()
+        if not modifier:
+            return None
+
+        update_data = modifier_data.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(modifier, field, value)
+
+        await db.commit()
+        await db.refresh(modifier)
+        return modifier
     
     @staticmethod
     async def get_modifier_by_id(db: AsyncSession, modifier_id: str) -> Optional[Modifier]:
@@ -288,6 +308,18 @@ class ModifierService:
         query = query.order_by(Modifier.name).offset(skip).limit(limit)
         result = await db.execute(query)
         return list(result.scalars().all())
+
+    @staticmethod
+    async def delete_modifier(db: AsyncSession, modifier_id: str) -> bool:
+        """Delete modifier"""
+        result = await db.execute(select(Modifier).where(Modifier.id == modifier_id))
+        modifier = result.scalar_one_or_none()
+        if not modifier:
+            return False
+
+        await db.delete(modifier)
+        await db.commit()
+        return True
     
     @staticmethod
     async def create_modifier_option(

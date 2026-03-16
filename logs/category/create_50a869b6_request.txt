@@ -1,0 +1,6 @@
+endpoint: http://localhost:8000/api/v1/products/categories
+method: POST
+headers:
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxYzQ2YzQ3Zi0yMDJiLTExZjEtYmFkNC0xNmU4ZDRhYjFlZGIiLCJleHAiOjE3NzM2NTM4OTcsInR5cGUiOiJhY2Nlc3MifQ.AeLM_izwhJFqydPVuUSuIoJjMJZ77iWVZyQS3Quj54k
+payload:
+{"fields": {"restaurant_id": "21141f75-7710-489c-acb7-882ff7ff8ec4", "name": "Cat-a1dcab", "slug": "cat-7cc64c", "description": "Test category with image"}, "files": {"image": "fc17946300b74a5187b510d24caedf12.jpg"}}

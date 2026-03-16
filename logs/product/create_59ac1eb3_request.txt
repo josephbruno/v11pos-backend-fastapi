@@ -1,0 +1,6 @@
+endpoint: http://localhost:8000/api/v1/products
+method: POST
+headers:
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxYzQ2YzQ3Zi0yMDJiLTExZjEtYmFkNC0xNmU4ZDRhYjFlZGIiLCJleHAiOjE3NzM2NTQwNDIsInR5cGUiOiJhY2Nlc3MifQ.iJs12Pyl_WIX4ypQ6btbFw0Lp5v0KliQeywwYPNjD88
+payload:
+{"fields": {"restaurant_id": "21141f75-7710-489c-acb7-882ff7ff8ec4", "category_id": "204c9765-0749-4312-8c44-14689b8df7fd", "name": "Prod-0699d4", "slug": "prod-1286e0", "sku": "SKU-6c4eab", "price": 1000}, "files": {"image": "5025d167538640be8cca4496f7adbb93.jpg"}}

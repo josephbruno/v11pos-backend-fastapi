@@ -1,0 +1,6 @@
+endpoint: http://localhost:8000/api/v1/products/modifiers/152fbef4-6393-4048-8daa-bd7f63df41c0
+method: PUT
+headers:
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxYzQ2YzQ3Zi0yMDJiLTExZjEtYmFkNC0xNmU4ZDRhYjFlZGIiLCJleHAiOjE3NzM2NTM4OTcsInR5cGUiOiJhY2Nlc3MifQ.AeLM_izwhJFqydPVuUSuIoJjMJZ77iWVZyQS3Quj54k
+payload:
+{"fields": {"name": "Mod-99f151-updated"}, "files": {"icon": "fc17946300b74a5187b510d24caedf12.jpg"}}

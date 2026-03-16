@@ -1,0 +1,6 @@
+endpoint: http://localhost:8000/api/v1/products/categories/febe8f1d-d306-44d0-8634-39bd530089e9
+method: DELETE
+headers:
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxYzQ2YzQ3Zi0yMDJiLTExZjEtYmFkNC0xNmU4ZDRhYjFlZGIiLCJleHAiOjE3NzM2NTM3MzEsInR5cGUiOiJhY2Nlc3MifQ.2xgheJTkdM5OOzSszTUZJS3NVTanI_pPqXII42ombnU
+payload:
+

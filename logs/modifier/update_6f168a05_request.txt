@@ -1,0 +1,6 @@
+endpoint: http://localhost:8000/api/v1/products/modifiers/5032e2e0-d632-4cc6-ac8a-e9ff831ab0c3
+method: PUT
+headers:
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxYzQ2YzQ3Zi0yMDJiLTExZjEtYmFkNC0xNmU4ZDRhYjFlZGIiLCJleHAiOjE3NzM2NTQyMzAsInR5cGUiOiJhY2Nlc3MifQ.TUv9y-iVbgVJkjILVgOnIsHqTeX2heIiYSucBdQi1LE
+payload:
+{"fields": {"name": "Mod-305c7e-updated"}, "files": {"icon": "77922702f7f34ff3afaa4ad545db544f.jpg"}}

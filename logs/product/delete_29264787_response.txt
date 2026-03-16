@@ -1,0 +1,4 @@
+status_code: 200
+response_time: 0.249s
+response_body:
+{"success":true,"status_code":200,"message":"Product deleted successfully","data":{"deleted_product_id":"83c12a7b-ca38-4ef1-95ee-84678a816e97"},"error":null,"timestamp":"2026-03-16T09:28:17.769953+00:00"}

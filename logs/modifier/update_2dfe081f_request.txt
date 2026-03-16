@@ -1,0 +1,6 @@
+endpoint: http://localhost:8000/api/v1/products/modifiers/7c831655-f970-4931-85f6-3900487e2722
+method: PUT
+headers:
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxYzQ2YzQ3Zi0yMDJiLTExZjEtYmFkNC0xNmU4ZDRhYjFlZGIiLCJleHAiOjE3NzM2NTUwOTMsInR5cGUiOiJhY2Nlc3MifQ.S6SAYuLnMrI1eQh63_Wt7VItyueeNRkDHcaiPAA9mb8
+payload:
+{"fields": {"name": "Mod-a67f52-updated"}, "files": {"icon": "7e9aabf0be31497eb489f85a8c46b073.jpg"}}

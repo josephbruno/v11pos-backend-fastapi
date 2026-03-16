@@ -1,0 +1,6 @@
+endpoint: http://localhost:8000/api/v1/products/categories/7c30d745-728b-4844-a8e0-bc2a871fa4a1
+method: PUT
+headers:
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxYzQ2YzQ3Zi0yMDJiLTExZjEtYmFkNC0xNmU4ZDRhYjFlZGIiLCJleHAiOjE3NzM2NTQyMzAsInR5cGUiOiJhY2Nlc3MifQ.TUv9y-iVbgVJkjILVgOnIsHqTeX2heIiYSucBdQi1LE
+payload:
+{"fields": {"description": "Updated category image"}, "files": {"image": "482a3a6fc33c4f21a410b47b432b53c5.jpg"}}

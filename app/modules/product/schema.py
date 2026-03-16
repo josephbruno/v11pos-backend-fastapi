@@ -598,6 +598,7 @@ class ModifierBase(BaseModel):
     required: bool = False
     min_selections: int = Field(0, ge=0)
     max_selections: Optional[int] = Field(None, ge=0)
+    icon_url: Optional[str] = None
 
 
 class ModifierCreate(ModifierBase):
@@ -613,6 +614,7 @@ class ModifierUpdate(BaseModel):
     required: Optional[bool] = None
     min_selections: Optional[int] = Field(None, ge=0)
     max_selections: Optional[int] = Field(None, ge=0)
+    icon_url: Optional[str] = None
 
 
 class ModifierResponse(ModifierBase):

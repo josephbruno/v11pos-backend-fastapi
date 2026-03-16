@@ -1,0 +1,6 @@
+endpoint: http://localhost:8000/api/v1/products/9e40e5db-af25-4d12-96e0-1700b4073593
+method: DELETE
+headers:
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxYzQ2YzQ3Zi0yMDJiLTExZjEtYmFkNC0xNmU4ZDRhYjFlZGIiLCJleHAiOjE3NzM2NTQwNDIsInR5cGUiOiJhY2Nlc3MifQ.iJs12Pyl_WIX4ypQ6btbFw0Lp5v0KliQeywwYPNjD88
+payload:
+

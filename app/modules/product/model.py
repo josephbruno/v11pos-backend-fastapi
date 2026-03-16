@@ -352,6 +352,8 @@ class Modifier(Base):
     required: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     min_selections: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     max_selections: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # Media
+    icon_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,

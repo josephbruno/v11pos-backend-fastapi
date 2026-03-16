@@ -1,0 +1,4 @@
+status_code: 200
+response_time: 0.320s
+response_body:
+{"success":true,"status_code":200,"message":"Modifier created successfully","data":{"name":"Mod-99f151","type":"single","category":"add-ons","required":false,"min_selections":0,"max_selections":null,"icon_url":"http://localhost:9000/uploads/modifiers/b703a661b797427387d3ed20d91ecb80.jpg","id":"152fbef4-6393-4048-8daa-bd7f63df41c0","restaurant_id":"21141f75-7710-489c-acb7-882ff7ff8ec4","created_at":"2026-03-16T09:08:22","updated_at":"2026-03-16T09:08:22"},"error":null,"timestamp":"2026-03-16T09:08:21.885413+00:00"}

@@ -1,0 +1,4 @@
+status_code: 200
+response_time: 0.200s
+response_body:
+{"success":true,"status_code":200,"message":"Category deleted successfully","data":{"deleted_category_id":"7c30d745-728b-4844-a8e0-bc2a871fa4a1"},"error":null,"timestamp":"2026-03-16T09:13:53.386911+00:00"}

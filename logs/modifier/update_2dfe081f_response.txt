@@ -1,0 +1,4 @@
+status_code: 200
+response_time: 0.434s
+response_body:
+{"success":true,"status_code":200,"message":"Modifier updated successfully","data":{"name":"Mod-a67f52-updated","type":"single","category":"add-ons","required":false,"min_selections":0,"max_selections":null,"icon_url":"http://localhost:9000/uploads/modifiers/25fa434fb9e047578f823ddda94a2b73.webp","id":"7c831655-f970-4931-85f6-3900487e2722","restaurant_id":"21141f75-7710-489c-acb7-882ff7ff8ec4","created_at":"2026-03-16T09:28:18","updated_at":"2026-03-16T09:28:18"},"error":null,"timestamp":"2026-03-16T09:28:18.550557+00:00"}

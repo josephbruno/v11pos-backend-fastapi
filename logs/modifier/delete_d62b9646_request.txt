@@ -1,0 +1,6 @@
+endpoint: http://localhost:8000/api/v1/products/modifiers/61b5accd-a62f-41c2-ba82-e6742f27dc45
+method: DELETE
+headers:
+  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxYzQ2YzQ3Zi0yMDJiLTExZjEtYmFkNC0xNmU4ZDRhYjFlZGIiLCJleHAiOjE3NzM2NTM3MzEsInR5cGUiOiJhY2Nlc3MifQ.2xgheJTkdM5OOzSszTUZJS3NVTanI_pPqXII42ombnU
+payload:
+
