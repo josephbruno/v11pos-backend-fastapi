@@ -85,9 +85,13 @@ class CategoryService:
         limit: int = 100
     ) -> List[Category]:
         """Get categories by restaurant"""
-        query = select(Category).where(
+        query = (
+            select(Category)
+            .options(joinedload(Category.restaurant))
+            .where(
             Category.restaurant_id == restaurant_id,
             Category.deleted_at.is_(None)
+            )
         )
         
         if active_only:
@@ -95,7 +99,11 @@ class CategoryService:
         
         query = query.order_by(Category.sort_order, Category.name).offset(skip).limit(limit)
         result = await db.execute(query)
-        return list(result.scalars().all())
+        categories = list(result.scalars().all())
+        for category in categories:
+            if getattr(category, "restaurant", None) is not None:
+                category.restaurant_name = category.restaurant.name
+        return categories
     
     @staticmethod
     async def update_category(

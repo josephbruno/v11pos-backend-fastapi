@@ -192,8 +192,12 @@ def get_file_url(file_name: str) -> str:
     """
     object_name = _normalize_object_name(file_name)
     scheme = "https" if settings.MINIO_SECURE else "http"
-    public_endpoint = settings.MINIO_PUBLIC_ENDPOINT or settings.MINIO_ENDPOINT
-    return f"{scheme}://{public_endpoint}/{settings.MINIO_BUCKET}/{object_name}"
+    public_endpoint = (settings.MINIO_PUBLIC_ENDPOINT or settings.MINIO_ENDPOINT).strip()
+    if re.match(r"^https?://", public_endpoint):
+        base = public_endpoint.rstrip("/")
+    else:
+        base = f"{scheme}://{public_endpoint}"
+    return f"{base}/{settings.MINIO_BUCKET}/{object_name}"
 
 
 def get_object_name_from_url(file_url: str) -> Optional[str]:
