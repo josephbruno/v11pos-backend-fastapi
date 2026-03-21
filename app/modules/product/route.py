@@ -661,6 +661,35 @@ async def get_restaurant_transactions(
 
 # Modifier Endpoints
 
+@router.get("/modifiers/restaurant/{restaurant_id}")
+async def get_modifiers(
+    restaurant_id: str,
+    skip: int = 0,
+    limit: int = 100,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get modifiers for a restaurant"""
+    try:
+        modifiers = await ModifierService.get_modifiers_by_restaurant(
+            db, restaurant_id, skip, limit
+        )
+        modifiers_data = [
+            ModifierResponse.model_validate(m).model_dump()
+            for m in modifiers
+        ]
+        return success_response(
+            message="Modifiers retrieved successfully",
+            data=modifiers_data,
+            timezone=getattr(current_user, "timezone", None)
+        )
+    except Exception as e:
+        return error_response(
+            message="Failed to retrieve modifiers",
+            error_code="INTERNAL_ERROR",
+            error_details=str(e)
+        )
+
 @router.post("/modifiers", status_code=status.HTTP_201_CREATED, openapi_extra=MODIFIER_CREATE_DOC)
 async def create_modifier(
     request: Request,
