@@ -13,6 +13,7 @@ from app.modules.auth.schema import (
 )
 from app.modules.auth.service import AuthService, LoginLogService
 from app.modules.user.model import User
+from app.modules.user.service import UserService
 
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -233,6 +234,16 @@ async def forgot_password(
     but logs the attempt for tracking purposes.
     """
     try:
+        # Check if the email exists before proceeding
+        user = await UserService.get_user_by_email(db, forgot_data.email)
+        if not user:
+            return error_response(
+                message="Email not found",
+                error_code="USER_NOT_FOUND",
+                error_details=f"User with email {forgot_data.email} does not exist",
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+
         # Extract request metadata
         ip_address = get_client_ip(request)
         user_agent = request.headers.get("User-Agent", "unknown")
