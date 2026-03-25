@@ -133,10 +133,12 @@ POST   /products/modifiers                           - Create modifier
 POST   /products/modifiers/options                   - Create modifier option
 ```
 
-### Combos (2 endpoints)
+### Combos (4 endpoints)
 ```
 POST   /products/combos                              - Create combo
 GET    /products/combos/restaurant/{id}              - List combos
+POST   /products/combos/{combo_id}/items             - Add combo items (bulk)
+GET    /products/combos/{combo_id}/items             - List combo items
 ```
 
 ---

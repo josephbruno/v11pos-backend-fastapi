@@ -179,6 +179,14 @@ class ProductService:
         """Get product by ID"""
         result = await db.execute(select(Product).where(Product.id == product_id))
         return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_products_by_ids(db: AsyncSession, product_ids: List[str]) -> List[Product]:
+        """Get products by IDs (order not guaranteed)."""
+        if not product_ids:
+            return []
+        result = await db.execute(select(Product).where(Product.id.in_(product_ids)))
+        return list(result.scalars().all())
     
     @staticmethod
     async def get_products_by_restaurant(
@@ -510,6 +518,18 @@ class ComboProductService:
         await db.commit()
         await db.refresh(item)
         return item
+
+    @staticmethod
+    async def add_combo_items(db: AsyncSession, items_data: List[ComboItemCreate]) -> List[ComboItem]:
+        """Add multiple items to a combo (single transaction)."""
+        if not items_data:
+            return []
+        items = [ComboItem(**item.model_dump()) for item in items_data]
+        db.add_all(items)
+        await db.commit()
+        for item in items:
+            await db.refresh(item)
+        return items
     
     @staticmethod
     async def get_combo_items(db: AsyncSession, combo_id: str) -> List[ComboItem]:

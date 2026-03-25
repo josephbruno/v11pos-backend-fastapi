@@ -645,6 +645,16 @@ class ComboItemCreate(ComboItemBase):
     combo_id: str
 
 
+class ComboItemInComboCreate(ComboItemBase):
+    """Schema for creating a combo item via combo endpoint (combo_id inferred from path)"""
+    pass
+
+
+class ComboItemsBulkCreate(BaseModel):
+    """Schema for bulk creating combo items"""
+    items: List[ComboItemInComboCreate] = Field(..., min_length=1)
+
+
 class ComboItemResponse(ComboItemBase):
     """Schema for combo item response"""
     id: str

@@ -221,6 +221,13 @@ email=superadmin@restaurant.com&password=Super@123
 **Accepts:** JSON only
 **Authentication:** Required
 
+### POST /products/combos/{combo_id}/items
+**Accepts:** JSON only
+**Authentication:** Required
+
+### GET /products/combos/{combo_id}/items
+**Authentication:** Not required
+
 ---
 
 ## Customer Endpoints (`/api/v1/customers`)

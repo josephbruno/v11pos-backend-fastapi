@@ -877,3 +877,102 @@ async def get_combos(
             error_code="INTERNAL_ERROR",
             error_details=str(e)
         )
+
+
+@router.post("/combos/{combo_id}/items", status_code=status.HTTP_201_CREATED)
+async def add_combo_items(
+    combo_id: str,
+    payload: ComboItemsBulkCreate,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Add items to an existing combo product"""
+    try:
+        combo = await ComboProductService.get_combo_by_id(db, combo_id)
+        if not combo:
+            return error_response(
+                message="Combo product not found",
+                error_code="NOT_FOUND",
+                error_details=f"Combo product with ID {combo_id} not found",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Validate all referenced products exist and belong to the same restaurant
+        referenced_product_ids: set[str] = set()
+        for item in payload.items:
+            referenced_product_ids.add(item.product_id)
+            if item.choices:
+                referenced_product_ids.update(item.choices)
+
+        products = await ProductService.get_products_by_ids(db, list(referenced_product_ids))
+        products_by_id = {p.id: p for p in products}
+
+        missing_ids = sorted(pid for pid in referenced_product_ids if pid not in products_by_id)
+        if missing_ids:
+            return error_response(
+                message="One or more products not found",
+                error_code="NOT_FOUND",
+                error_details={"missing_product_ids": missing_ids},
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        invalid_restaurant_ids = sorted(
+            pid for pid, p in products_by_id.items() if p.restaurant_id != combo.restaurant_id
+        )
+        if invalid_restaurant_ids:
+            return error_response(
+                message="One or more products belong to a different restaurant",
+                error_code="VALIDATION_ERROR",
+                error_details={"invalid_product_ids": invalid_restaurant_ids},
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        items_data = [
+            ComboItemCreate(
+                restaurant_id=combo.restaurant_id,
+                combo_id=combo_id,
+                **item.model_dump(),
+            )
+            for item in payload.items
+        ]
+        items = await ComboProductService.add_combo_items(db, items_data)
+
+        return success_response(
+            message="Combo items added successfully",
+            data=[ComboItemResponse.model_validate(i).model_dump() for i in items],
+        )
+    except Exception as e:
+        return error_response(
+            message="Failed to add combo items",
+            error_code="INTERNAL_ERROR",
+            error_details=str(e),
+        )
+
+
+@router.get("/combos/{combo_id}/items")
+async def get_combo_items(
+    combo_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get items for a combo product"""
+    try:
+        combo = await ComboProductService.get_combo_by_id(db, combo_id)
+        if not combo:
+            return error_response(
+                message="Combo product not found",
+                error_code="NOT_FOUND",
+                error_details=f"Combo product with ID {combo_id} not found",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        items = await ComboProductService.get_combo_items(db, combo_id)
+        return success_response(
+            message="Combo items retrieved successfully",
+            data=[ComboItemResponse.model_validate(i).model_dump() for i in items],
+        )
+    except Exception as e:
+        return error_response(
+            message="Failed to retrieve combo items",
+            error_code="INTERNAL_ERROR",
+            error_details=str(e),
+        )
