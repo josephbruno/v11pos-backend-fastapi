@@ -18,7 +18,7 @@ from app.modules.user.model import User
 router = APIRouter(prefix="/tables", tags=["tables"])
 
 
-@router.post("/", response_model=dict, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def create_table(
     table_data: TableCreate,
     db: AsyncSession = Depends(get_db),
