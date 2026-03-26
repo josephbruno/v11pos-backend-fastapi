@@ -89,6 +89,20 @@ PRODUCT_UPDATE_DOC = _multipart_request_body(
     }
 )
 
+COMBO_CREATE_DOC = _multipart_request_body(
+    {
+        "type": "object",
+        "properties": {
+            "restaurant_id": {"type": "string"},
+            "name": {"type": "string"},
+            "price": {"type": "integer"},
+            "category_id": {"type": "string"},
+            "image": {"type": "string", "format": "binary"},
+        },
+        "required": ["restaurant_id", "name", "price", "category_id"],
+    }
+)
+
 MODIFIER_CREATE_DOC = _multipart_request_body(
     {
         "type": "object",
@@ -829,18 +843,31 @@ async def create_modifier_option(
 
 # Combo Product Endpoints
 
-@router.post("/combos", status_code=status.HTTP_201_CREATED)
+@router.post("/combos", status_code=status.HTTP_201_CREATED, openapi_extra=COMBO_CREATE_DOC)
 async def create_combo(
-    combo_data: ComboProductCreate,
+    request: Request,
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Create a new combo product"""
     try:
+        data, image_file = await _parse_payload(request, file_field="image")
+        if image_file:
+            image_url = await _upload_and_replace(None, image_file, folder="combos")
+            data["image"] = image_url
+
+        combo_data = ComboProductCreate(**data)
         combo = await ComboProductService.create_combo(db, combo_data)
         return success_response(
             message="Combo product created successfully",
             data=ComboProductResponse.model_validate(combo).model_dump()
+        )
+    except ValueError as e:
+        return error_response(
+            message="Failed to create combo product",
+            error_code="INVALID_FILE",
+            error_details=str(e),
+            status_code=status.HTTP_400_BAD_REQUEST
         )
     except Exception as e:
         return error_response(
