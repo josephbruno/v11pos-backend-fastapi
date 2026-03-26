@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, status, Request, UploadFile
 from starlette.datastructures import UploadFile as StarletteUploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional, Tuple, Any
+import json
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_active_user
@@ -154,6 +155,17 @@ async def _parse_payload(
                 data[key] = [existing, value]
         else:
             data[key] = value
+
+    # Parse JSON strings for complex data types
+    for key, value in data.items():
+        if isinstance(value, str):
+            try:
+                # Try to parse as JSON
+                parsed = json.loads(value)
+                data[key] = parsed
+            except (json.JSONDecodeError, TypeError):
+                # Keep as string if not valid JSON
+                pass
 
     return data, upload
 
