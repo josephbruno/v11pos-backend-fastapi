@@ -363,6 +363,50 @@ class ModifierService:
         return list(result.scalars().all())
 
     @staticmethod
+    async def get_modifier_option_by_id(
+        db: AsyncSession,
+        option_id: str
+    ) -> Optional[ModifierOption]:
+        """Get modifier option by ID"""
+        result = await db.execute(
+            select(ModifierOption).where(ModifierOption.id == option_id)
+        )
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def update_modifier_option(
+        db: AsyncSession,
+        option_id: str,
+        option_data: ModifierOptionUpdate
+    ) -> Optional[ModifierOption]:
+        """Update a modifier option"""
+        option = await ModifierService.get_modifier_option_by_id(db, option_id)
+        if not option:
+            return None
+
+        update_data = option_data.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(option, field, value)
+
+        await db.commit()
+        await db.refresh(option)
+        return option
+
+    @staticmethod
+    async def delete_modifier_option(
+        db: AsyncSession,
+        option_id: str
+    ) -> bool:
+        """Delete a modifier option"""
+        option = await ModifierService.get_modifier_option_by_id(db, option_id)
+        if not option:
+            return False
+
+        await db.delete(option)
+        await db.commit()
+        return True
+
+    @staticmethod
     async def get_modifiers_with_options_by_restaurant(
         db: AsyncSession,
         restaurant_id: str

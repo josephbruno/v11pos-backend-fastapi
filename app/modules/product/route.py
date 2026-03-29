@@ -875,6 +875,65 @@ async def get_modifier_options(
         )
 
 
+@router.put("/modifiers/options/{option_id}")
+async def update_modifier_option(
+    option_id: str,
+    option_data: ModifierOptionUpdate,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update a modifier option"""
+    try:
+        option = await ModifierService.update_modifier_option(db, option_id, option_data)
+        if not option:
+            return error_response(
+                message="Modifier option not found",
+                error_code="NOT_FOUND",
+                error_details=f"Modifier option with ID {option_id} not found"
+            )
+
+        return success_response(
+            message="Modifier option updated successfully",
+            data=ModifierOptionResponse.model_validate(option).model_dump(),
+            timezone=getattr(current_user, "timezone", None)
+        )
+    except Exception as e:
+        return error_response(
+            message="Failed to update modifier option",
+            error_code="INTERNAL_ERROR",
+            error_details=str(e)
+        )
+
+
+@router.delete("/modifiers/options/{option_id}")
+async def delete_modifier_option(
+    option_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete a modifier option"""
+    try:
+        deleted = await ModifierService.delete_modifier_option(db, option_id)
+        if not deleted:
+            return error_response(
+                message="Modifier option not found",
+                error_code="NOT_FOUND",
+                error_details=f"Modifier option with ID {option_id} not found"
+            )
+
+        return success_response(
+            message="Modifier option deleted successfully",
+            data={"deleted_option_id": option_id},
+            timezone=getattr(current_user, "timezone", None)
+        )
+    except Exception as e:
+        return error_response(
+            message="Failed to delete modifier option",
+            error_code="INTERNAL_ERROR",
+            error_details=str(e)
+        )
+
+
 @router.get("/modifiers/restaurant/{restaurant_id}/hierarchical")
 async def get_hierarchical_modifiers(
     restaurant_id: str,
