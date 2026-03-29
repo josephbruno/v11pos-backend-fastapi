@@ -853,6 +853,52 @@ async def create_modifier_option(
         )
 
 
+@router.get("/modifiers/{modifier_id}/options")
+async def get_modifier_options(
+    modifier_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get options for a modifier"""
+    try:
+        options = await ModifierService.get_modifier_options(db, modifier_id)
+        return success_response(
+            message="Modifier options retrieved successfully",
+            data=[ModifierOptionResponse.model_validate(o).model_dump() for o in options],
+            timezone=getattr(current_user, "timezone", None)
+        )
+    except Exception as e:
+        return error_response(
+            message="Failed to retrieve modifier options",
+            error_code="INTERNAL_ERROR",
+            error_details=str(e)
+        )
+
+
+@router.get("/modifiers/restaurant/{restaurant_id}/hierarchical")
+async def get_hierarchical_modifiers(
+    restaurant_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get modifiers with nested options for a restaurant"""
+    try:
+        modifiers = await ModifierService.get_modifiers_with_options_by_restaurant(
+            db, restaurant_id
+        )
+        return success_response(
+            message="Hierarchical modifiers retrieved successfully",
+            data=[ModifierWithOptionsResponse.model_validate(m).model_dump() for m in modifiers],
+            timezone=getattr(current_user, "timezone", None)
+        )
+    except Exception as e:
+        return error_response(
+            message="Failed to retrieve hierarchical modifiers",
+            error_code="INTERNAL_ERROR",
+            error_details=str(e)
+        )
+
+
 # Combo Product Endpoints
 
 @router.post("/combos", status_code=status.HTTP_201_CREATED, openapi_extra=COMBO_CREATE_DOC)

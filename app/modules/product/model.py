@@ -361,6 +361,8 @@ class Modifier(Base):
         onupdate=datetime.utcnow,
         nullable=False
     )
+    # Relationships
+    options: Mapped[List["ModifierOption"]] = relationship("ModifierOption", back_populates="modifier", cascade="all, delete-orphan", lazy="selectin")
     
     def __repr__(self):
         return f"<Modifier(id={self.id}, name='{self.name}', type='{self.type}', restaurant_id={self.restaurant_id})>"
@@ -394,6 +396,8 @@ class ModifierOption(Base):
         onupdate=datetime.utcnow,
         nullable=False
     )
+    # Relationships
+    modifier: Mapped["Modifier"] = relationship("Modifier", back_populates="options")
     
     def __repr__(self):
         return f"<ModifierOption(id={self.id}, name='{self.name}', price={self.price})>"

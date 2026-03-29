@@ -58,6 +58,23 @@ from app.modules.product.model import (
     ModifierOptionTranslation,
     ComboProductTranslation
 )
+from app.modules.reports.model import (
+    SalesReport,
+    ItemWiseSalesReport,
+    CategoryWiseSalesReport,
+    ReportSchedule,
+    ReportExport
+)
+from app.modules.data_import.model import (
+    DataImport,
+    ImportLog,
+    ImportTemplate
+)
+from app.modules.data_copy.model import (
+    DataCopy,
+    CopyLog,
+    CopyTemplate
+)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

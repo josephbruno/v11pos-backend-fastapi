@@ -627,6 +627,11 @@ class ModifierResponse(ModifierBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ModifierWithOptionsResponse(ModifierResponse):
+    """Schema for modifier response with options nested"""
+    options: List[ModifierOptionResponse] = []
+
+
 # Combo Product Schemas
 
 class ComboItemBase(BaseModel):

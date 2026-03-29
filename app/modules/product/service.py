@@ -362,6 +362,22 @@ class ModifierService:
         result = await db.execute(query)
         return list(result.scalars().all())
 
+    @staticmethod
+    async def get_modifiers_with_options_by_restaurant(
+        db: AsyncSession,
+        restaurant_id: str
+    ) -> List[Modifier]:
+        """Get all modifiers with their options for a restaurant"""
+        query = (
+            select(Modifier)
+            .options(joinedload(Modifier.options))
+            .where(Modifier.restaurant_id == restaurant_id)
+            .order_by(Modifier.name)
+        )
+        
+        result = await db.execute(query)
+        return list(result.unique().scalars().all())
+
 
 class InventoryService:
     """Service for inventory operations"""
