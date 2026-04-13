@@ -75,6 +75,8 @@ from app.modules.data_copy.model import (
     CopyLog,
     CopyTemplate
 )
+from app.modules.homebanner.model import HomeBanner
+from app.modules.row_management.model import RowManagement
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

@@ -1,0 +1,311 @@
+Modifier Model - Fields, Explanation, API Payloads & Responses
+=============================================================
+
+Source of truth
+- Model: app/modules/product/model.py (Modifier)
+- Schemas: app/modules/product/schema.py (ModifierCreate, ModifierUpdate, ModifierResponse)
+- Endpoints: app/modules/product/route.py (Modifier endpoints)
+- Response wrapper: app/core/response.py (success_response/error_response)
+
+Modifier Model (SQLAlchemy) - All Fields
+---------------------------------------
+1) id
+   - Type: String(36)
+   - Primary key, UUID string generated automatically.
+
+2) restaurant_id
+   - Type: String(36)
+   - FK -> restaurants.id
+   - Required. Identifies the restaurant that owns the modifier.
+
+3) name
+   - Type: String(100)
+   - Required. Human-readable modifier name (e.g., "Toppings").
+
+4) type
+   - Type: Enum ModifierType
+   - Required. Default: "single".
+   - Allowed values: "single", "multiple".
+
+5) category
+   - Type: String(50)
+   - Required. Default: "add-ons".
+   - Used to group modifiers (e.g., "sauces", "extras").
+
+6) required
+   - Type: Boolean
+   - Required. Default: false.
+   - If true, customer must select at least one option.
+
+7) min_selections
+   - Type: Integer
+   - Required. Default: 0.
+   - Minimum number of selections allowed.
+
+8) max_selections
+   - Type: Integer (nullable)
+   - Optional. Maximum number of selections allowed.
+
+9) icon_url
+   - Type: String(500) (nullable)
+   - Optional. Stored URL for uploaded icon.
+
+10) created_at
+    - Type: DateTime
+    - Required. Auto-filled on create.
+
+11) updated_at
+    - Type: DateTime
+    - Required. Auto-updated on update.
+
+Enum: ModifierType
+------------------
+- single
+- multiple
+
+API Payloads & Responses
+========================
+
+Response Envelope (all endpoints)
+---------------------------------
+Success response shape:
+{
+  "success": true,
+  "status_code": 200 or 201,
+  "message": "...",
+  "data": { ... } or [ ... ],
+  "error": null,
+  "timestamp": "2024-01-01T12:00:00.000Z"
+}
+
+Error response shape:
+{
+  "success": false,
+  "status_code": 400/404/500,
+  "message": "...",
+  "data": null,
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "...",
+    "details": "...",
+    "field": "..."
+  },
+  "timestamp": "2024-01-01T12:00:00.000Z"
+}
+
+1) Create Modifier
+------------------
+Endpoint: POST /modifiers
+Content-Type: multipart/form-data OR application/json
+OpenAPI doc expects multipart with optional file field `icon`.
+
+Create Payload (JSON example):
+{
+  "restaurant_id": "rest_123",
+  "name": "Toppings",
+  "type": "multiple",
+  "category": "add-ons",
+  "required": false,
+  "min_selections": 0,
+  "max_selections": 3,
+  "icon_url": "https://cdn.example.com/modifiers/toppings.png"
+}
+
+Create Payload (multipart example with file):
+- restaurant_id: rest_123
+- name: Toppings
+- type: multiple
+- category: add-ons
+- required: false
+- min_selections: 0
+- max_selections: 3
+- icon: <binary file>
+
+Create Response (success):
+{
+  "success": true,
+  "status_code": 201,
+  "message": "Modifier created successfully",
+  "data": {
+    "id": "uuid",
+    "restaurant_id": "rest_123",
+    "name": "Toppings",
+    "type": "multiple",
+    "category": "add-ons",
+    "required": false,
+    "min_selections": 0,
+    "max_selections": 3,
+    "icon_url": "https://cdn.example.com/modifiers/toppings.png",
+    "created_at": "2024-01-01T12:00:00.000Z",
+    "updated_at": "2024-01-01T12:00:00.000Z"
+  },
+  "error": null,
+  "timestamp": "2024-01-01T12:00:00.000Z"
+}
+
+2) Update Modifier
+------------------
+Endpoint: PUT /modifiers/{modifier_id}
+Content-Type: multipart/form-data OR application/json
+OpenAPI doc expects multipart with optional file field `icon`.
+
+Update Payload (JSON example):
+{
+  "name": "Toppings (New)",
+  "type": "multiple",
+  "category": "add-ons",
+  "required": true,
+  "min_selections": 1,
+  "max_selections": 4,
+  "icon_url": "https://cdn.example.com/modifiers/toppings-new.png"
+}
+
+Update Payload (multipart example with file):
+- name: Toppings (New)
+- type: multiple
+- category: add-ons
+- required: true
+- min_selections: 1
+- max_selections: 4
+- icon: <binary file>
+
+Update Response (success):
+{
+  "success": true,
+  "status_code": 200,
+  "message": "Modifier updated successfully",
+  "data": {
+    "id": "uuid",
+    "restaurant_id": "rest_123",
+    "name": "Toppings (New)",
+    "type": "multiple",
+    "category": "add-ons",
+    "required": true,
+    "min_selections": 1,
+    "max_selections": 4,
+    "icon_url": "https://cdn.example.com/modifiers/toppings-new.png",
+    "created_at": "2024-01-01T12:00:00.000Z",
+    "updated_at": "2024-01-02T09:30:00.000Z"
+  },
+  "error": null,
+  "timestamp": "2024-01-02T09:30:00.000Z"
+}
+
+3) List Modifiers By Restaurant
+-------------------------------
+Endpoint: GET /modifiers/restaurant/{restaurant_id}?skip=0&limit=100
+
+List Response (success):
+{
+  "success": true,
+  "status_code": 200,
+  "message": "Modifiers retrieved successfully",
+  "data": [
+    {
+      "id": "uuid",
+      "restaurant_id": "rest_123",
+      "name": "Toppings",
+      "type": "multiple",
+      "category": "add-ons",
+      "required": false,
+      "min_selections": 0,
+      "max_selections": 3,
+      "icon_url": "https://cdn.example.com/modifiers/toppings.png",
+      "created_at": "2024-01-01T12:00:00.000Z",
+      "updated_at": "2024-01-01T12:00:00.000Z"
+    }
+  ],
+  "error": null,
+  "timestamp": "2024-01-01T12:00:00.000Z"
+}
+
+Notes
+-----
+- For create/update, the OpenAPI docs show only `restaurant_id`, `name`, `type`, and `icon`, but the service accepts the full schema from `ModifierCreate`/`ModifierUpdate`.
+- `icon_url` is set by server when you upload `icon` (binary). If no file is sent, you may send `icon_url` in JSON.
+- `min_selections` and `max_selections` are non-negative in the schema.
+- `type` must be one of: single, multiple.
+
+Modifier vs Modifier Options (UI Summary)
+----------------------------------------
+- Modifier = the group (e.g., "Toppings", "Size").
+- Modifier Option = the selectable items inside that group (e.g., "Cheese", "Large").
+
+UI Integration Guide (Modifiers + Options)
+==========================================
+
+Typical UI Flow
+---------------
+1) Create or fetch modifiers for a restaurant (groups).
+2) For each modifier, create options (items) that users can pick.
+3) Attach modifiers to products (see Product-Modifier linkage in product APIs if needed).
+
+Modifier Option - Fields (Schema)
+---------------------------------
+- id: string (UUID) [response only]
+- restaurant_id: string (UUID) [required in create]
+- modifier_id: string (UUID) [required in create]
+- name: string (1-100)
+- price: int (>=0, in cents/paise)
+- available: bool
+- sort_order: int
+- created_at: datetime [response]
+- updated_at: datetime [response]
+
+API Payloads & Responses (Modifier Options)
+===========================================
+
+1) Create Modifier Option
+-------------------------
+Endpoint: POST /modifiers/options
+Content-Type: application/json
+
+Create Payload (JSON example):
+{
+  "restaurant_id": "rest_123",
+  "modifier_id": "mod_456",
+  "name": "Extra Cheese",
+  "price": 50,
+  "available": true,
+  "sort_order": 1
+}
+
+Create Response (success):
+{
+  "success": true,
+  "status_code": 201,
+  "message": "Modifier option created successfully",
+  "data": {
+    "id": "opt_789",
+    "restaurant_id": "rest_123",
+    "modifier_id": "mod_456",
+    "name": "Extra Cheese",
+    "price": 50,
+    "available": true,
+    "sort_order": 1,
+    "created_at": "2024-01-01T12:00:00.000Z",
+    "updated_at": "2024-01-01T12:00:00.000Z"
+  },
+  "error": null,
+  "timestamp": "2024-01-01T12:00:00.000Z"
+}
+
+2) List Modifiers (for UI Dropdown)
+-----------------------------------
+Endpoint: GET /modifiers/restaurant/{restaurant_id}?skip=0&limit=100
+Use this to show available modifier groups (e.g., in a UI admin panel).
+
+3) Add Options to Modifier
+--------------------------
+Create multiple options by calling POST /modifiers/options for each option.
+In UI, this is typically a list under the selected modifier group.
+
+UI Recommendations
+------------------
+- Modifier form:
+  - Fields: name, type, category, required, min_selections, max_selections, icon (optional upload)
+  - If type = single, enforce max_selections = 1 in UI
+  - If required = true, enforce min_selections >= 1 in UI
+- Modifier options form:
+  - Fields: name, price, available, sort_order
+  - Bind options to a modifier via modifier_id
