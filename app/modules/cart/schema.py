@@ -1,0 +1,72 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import List, Optional
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from app.modules.cart.model import CartItemType, CartStatus
+
+
+class CartItemAddRequest(BaseModel):
+    restaurant_id: str
+    customer_id: str
+    item_type: CartItemType
+    product_id: Optional[str] = None
+    combo_product_id: Optional[str] = None
+    quantity: int = Field(1, ge=1)
+    modifier_option_ids: List[str] = Field(default_factory=list)
+    notes: Optional[str] = Field(None, max_length=500)
+
+    @model_validator(mode="after")
+    def _validate_item_type_ids(self):
+        if self.item_type == CartItemType.PRODUCT:
+            if not self.product_id:
+                raise ValueError("product_id is required when item_type=product")
+            if self.combo_product_id:
+                raise ValueError("combo_product_id must be empty when item_type=product")
+        if self.item_type == CartItemType.COMBO_PRODUCT:
+            if not self.combo_product_id:
+                raise ValueError("combo_product_id is required when item_type=combo_product")
+            if self.product_id:
+                raise ValueError("product_id must be empty when item_type=combo_product")
+        return self
+
+
+class CartItemUpdateRequest(BaseModel):
+    quantity: int = Field(..., ge=1)
+
+
+class CartItemResponse(BaseModel):
+    id: str
+    cart_id: str
+    restaurant_id: str
+    item_type: CartItemType
+    product_id: Optional[str] = None
+    combo_product_id: Optional[str] = None
+    quantity: int
+    unit_price: int
+    modifiers_price: int
+    total_price: int
+    modifier_option_ids: List[str] = []
+    notes: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CartResponse(BaseModel):
+    id: str
+    restaurant_id: str
+    customer_id: str
+    status: CartStatus
+    is_active: bool
+    subtotal: int
+    total_quantity: int
+    items: List[CartItemResponse] = []
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
