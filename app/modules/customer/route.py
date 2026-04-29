@@ -8,7 +8,10 @@ from app.modules.customer.schema import (
     CustomerCreate,
     CustomerUpdate,
     CustomerResponse,
-    CustomerListResponse
+    CustomerListResponse,
+    CustomerAddressCreate,
+    CustomerAddressUpdate,
+    CustomerAddressResponse,
 )
 from app.modules.customer.service import CustomerService
 from app.modules.user.model import User
@@ -194,3 +197,79 @@ async def search_customers_by_location(
         },
         message="Customers retrieved successfully"
     )
+
+
+@router.get("/{customer_id}/addresses", response_model=dict)
+async def list_customer_addresses(
+    customer_id: str,
+    include_inactive: bool = Query(False, description="Include inactive addresses"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    customer = await CustomerService.get_customer_by_id(db, customer_id)
+    if not customer:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
+
+    addresses = await CustomerService.list_customer_addresses(db, customer_id, include_inactive=include_inactive)
+    return success_response(
+        message="Customer addresses retrieved successfully",
+        data=[CustomerAddressResponse.model_validate(a) for a in addresses],
+    )
+
+
+@router.post("/{customer_id}/addresses", response_model=dict, status_code=status.HTTP_201_CREATED)
+async def add_customer_address(
+    customer_id: str,
+    payload: CustomerAddressCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    customer = await CustomerService.get_customer_by_id(db, customer_id)
+    if not customer:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
+
+    address = await CustomerService.add_customer_address(db, customer_id, payload)
+    return success_response(
+        message="Customer address added successfully",
+        data=CustomerAddressResponse.model_validate(address),
+    )
+
+
+@router.put("/{customer_id}/addresses/{address_id}", response_model=dict)
+async def update_customer_address(
+    customer_id: str,
+    address_id: str,
+    payload: CustomerAddressUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    customer = await CustomerService.get_customer_by_id(db, customer_id)
+    if not customer:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
+
+    address = await CustomerService.update_customer_address(db, customer_id, address_id, payload)
+    if not address:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Address not found")
+
+    return success_response(
+        message="Customer address updated successfully",
+        data=CustomerAddressResponse.model_validate(address),
+    )
+
+
+@router.delete("/{customer_id}/addresses/{address_id}", response_model=dict)
+async def delete_customer_address(
+    customer_id: str,
+    address_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    customer = await CustomerService.get_customer_by_id(db, customer_id)
+    if not customer:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
+
+    ok = await CustomerService.delete_customer_address(db, customer_id, address_id)
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Address not found")
+
+    return success_response(message="Customer address deleted successfully", data={"id": address_id})

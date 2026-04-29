@@ -143,3 +143,42 @@ async def get_restaurant_timezone(
         Restaurant timezone string
     """
     return getattr(current_user, 'timezone', 'Asia/Kolkata')
+
+
+async def get_current_customer(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Dependency to get current authenticated customer from JWT token.
+    Expects tokens with payload: {"sub": "<customer_id>", "role": "customer", "type": "access"}.
+    """
+    token = credentials.credentials
+    payload = decode_token(token)
+
+    if payload is None or payload.get("type") != "access":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if payload.get("role") != "customer":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token role",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    customer_id: str = payload.get("sub")
+    if not customer_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
+
+    from app.modules.customer.model import Customer
+
+    result = await db.execute(select(Customer).where(Customer.id == customer_id))
+    customer = result.scalar_one_or_none()
+    if not customer or not customer.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Customer not found or inactive")
+
+    return customer

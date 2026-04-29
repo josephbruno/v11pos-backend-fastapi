@@ -1,8 +1,14 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
+from sqlalchemy.orm import selectinload
 from typing import Optional, List
-from app.modules.customer.model import Customer
-from app.modules.customer.schema import CustomerCreate, CustomerUpdate
+from app.modules.customer.model import Customer, CustomerAddress
+from app.modules.customer.schema import (
+    CustomerCreate,
+    CustomerUpdate,
+    CustomerAddressCreate,
+    CustomerAddressUpdate,
+)
 
 
 class CustomerService:
@@ -38,8 +44,13 @@ class CustomerService:
         db.add(db_customer)
         await db.commit()
         await db.refresh(db_customer)
-        
-        return db_customer
+
+        # Backward-compatible: if legacy address fields were provided, also create a default address record
+        await CustomerService.ensure_customer_default_address_from_legacy_fields(db, db_customer)
+
+        # Reload with addresses eager-loaded (avoid async lazy-load issues in response serialization)
+        customer = await CustomerService.get_customer_by_id(db, db_customer.id)
+        return customer or db_customer
     
     @staticmethod
     async def get_customer_by_id(db: AsyncSession, customer_id: str) -> Optional[Customer]:
@@ -54,7 +65,9 @@ class CustomerService:
             Customer if found, None otherwise
         """
         result = await db.execute(
-            select(Customer).where(Customer.id == customer_id)
+            select(Customer)
+            .options(selectinload(Customer.addresses))
+            .where(Customer.id == customer_id)
         )
         return result.scalar_one_or_none()
     
@@ -71,7 +84,9 @@ class CustomerService:
             Customer if found, None otherwise
         """
         result = await db.execute(
-            select(Customer).where(Customer.email == email)
+            select(Customer)
+            .options(selectinload(Customer.addresses))
+            .where(Customer.email == email)
         )
         return result.scalar_one_or_none()
     
@@ -88,7 +103,9 @@ class CustomerService:
             Customer if found, None otherwise
         """
         result = await db.execute(
-            select(Customer).where(Customer.phone == phone)
+            select(Customer)
+            .options(selectinload(Customer.addresses))
+            .where(Customer.phone == phone)
         )
         return result.scalar_one_or_none()
     
@@ -113,7 +130,7 @@ class CustomerService:
         Returns:
             Tuple of (list of customers, total count)
         """
-        query = select(Customer)
+        query = select(Customer).options(selectinload(Customer.addresses))
         
         # Apply filters
         if is_active is not None:
@@ -141,6 +158,129 @@ class CustomerService:
         customers = list(result.scalars().all())
         
         return customers, total
+
+    @staticmethod
+    async def get_customer_address_by_id(
+        db: AsyncSession, customer_id: str, address_id: str
+    ) -> Optional[CustomerAddress]:
+        result = await db.execute(
+            select(CustomerAddress).where(
+                CustomerAddress.customer_id == customer_id,
+                CustomerAddress.id == address_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def list_customer_addresses(
+        db: AsyncSession, customer_id: str, include_inactive: bool = False
+    ) -> List[CustomerAddress]:
+        query = select(CustomerAddress).where(CustomerAddress.customer_id == customer_id)
+        if not include_inactive:
+            query = query.where(CustomerAddress.is_active == True)
+        query = query.order_by(CustomerAddress.is_default.desc(), CustomerAddress.created_at.desc())
+        result = await db.execute(query)
+        return list(result.scalars().all())
+
+    @staticmethod
+    async def _unset_other_default_addresses(db: AsyncSession, customer_id: str, keep_address_id: str) -> None:
+        result = await db.execute(
+            select(CustomerAddress).where(
+                CustomerAddress.customer_id == customer_id,
+                CustomerAddress.id != keep_address_id,
+                CustomerAddress.is_default == True,
+            )
+        )
+        others = list(result.scalars().all())
+        for addr in others:
+            addr.is_default = False
+
+    @staticmethod
+    async def add_customer_address(
+        db: AsyncSession,
+        customer_id: str,
+        payload: CustomerAddressCreate,
+    ) -> CustomerAddress:
+        address = CustomerAddress(
+            customer_id=customer_id,
+            label=payload.label,
+            address=payload.address,
+            city=payload.city,
+            state=payload.state,
+            postal_code=payload.postal_code,
+            country=payload.country,
+            latitude=payload.latitude,
+            longitude=payload.longitude,
+            is_default=payload.is_default,
+            is_active=payload.is_active,
+        )
+        db.add(address)
+        await db.flush()
+
+        if address.is_default:
+            await CustomerService._unset_other_default_addresses(db, customer_id, address.id)
+
+        await db.commit()
+        await db.refresh(address)
+        return address
+
+    @staticmethod
+    async def update_customer_address(
+        db: AsyncSession,
+        customer_id: str,
+        address_id: str,
+        payload: CustomerAddressUpdate,
+    ) -> Optional[CustomerAddress]:
+        address = await CustomerService.get_customer_address_by_id(db, customer_id, address_id)
+        if not address:
+            return None
+
+        update_data = payload.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(address, field, value)
+
+        if update_data.get("is_default") is True:
+            await CustomerService._unset_other_default_addresses(db, customer_id, address.id)
+
+        await db.commit()
+        await db.refresh(address)
+        return address
+
+    @staticmethod
+    async def delete_customer_address(db: AsyncSession, customer_id: str, address_id: str) -> bool:
+        address = await CustomerService.get_customer_address_by_id(db, customer_id, address_id)
+        if not address:
+            return False
+        await db.delete(address)
+        await db.commit()
+        return True
+
+    @staticmethod
+    async def ensure_customer_default_address_from_legacy_fields(db: AsyncSession, customer: Customer) -> None:
+        """
+        If the customer has legacy address fields but no addresses, create a default address entry.
+        Keeps the legacy fields intact for backward compatibility.
+        """
+        if customer.addresses:
+            return
+        if not (customer.address or customer.city or customer.state or customer.postal_code or customer.country):
+            return
+
+        address = CustomerAddress(
+            customer_id=customer.id,
+            label="Primary",
+            address=customer.address,
+            city=customer.city,
+            state=customer.state,
+            postal_code=customer.postal_code,
+            country=customer.country,
+            latitude=customer.latitude,
+            longitude=customer.longitude,
+            is_default=True,
+            is_active=True,
+        )
+        db.add(address)
+        await db.commit()
     
     @staticmethod
     async def update_customer(
@@ -170,9 +310,9 @@ class CustomerService:
             setattr(customer, field, value)
         
         await db.commit()
-        await db.refresh(customer)
-        
-        return customer
+        # Reload with addresses eager-loaded (avoid async lazy-load issues in response serialization)
+        updated = await CustomerService.get_customer_by_id(db, customer_id)
+        return updated
     
     @staticmethod
     async def delete_customer(db: AsyncSession, customer_id: str) -> bool:

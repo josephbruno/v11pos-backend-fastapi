@@ -3,6 +3,46 @@ from datetime import datetime
 from typing import Optional
 
 
+class CustomerAddressBase(BaseModel):
+    label: Optional[str] = Field(None, max_length=100)
+    address: Optional[str] = Field(None, max_length=500)
+    city: Optional[str] = Field(None, max_length=100)
+    state: Optional[str] = Field(None, max_length=100)
+    postal_code: Optional[str] = Field(None, max_length=20)
+    country: Optional[str] = Field(None, max_length=100)
+    latitude: Optional[float] = Field(None, ge=-90, le=90)
+    longitude: Optional[float] = Field(None, ge=-180, le=180)
+
+
+class CustomerAddressCreate(CustomerAddressBase):
+    is_default: bool = False
+    is_active: bool = True
+
+
+class CustomerAddressUpdate(BaseModel):
+    label: Optional[str] = Field(None, max_length=100)
+    address: Optional[str] = Field(None, max_length=500)
+    city: Optional[str] = Field(None, max_length=100)
+    state: Optional[str] = Field(None, max_length=100)
+    postal_code: Optional[str] = Field(None, max_length=20)
+    country: Optional[str] = Field(None, max_length=100)
+    latitude: Optional[float] = Field(None, ge=-90, le=90)
+    longitude: Optional[float] = Field(None, ge=-180, le=180)
+    is_default: Optional[bool] = None
+    is_active: Optional[bool] = None
+
+
+class CustomerAddressResponse(CustomerAddressBase):
+    id: str
+    customer_id: str
+    is_default: bool
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class CustomerBase(BaseModel):
     """Base customer schema"""
     name: str = Field(..., min_length=1, max_length=255)
@@ -45,6 +85,7 @@ class CustomerResponse(CustomerBase):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+    addresses: list[CustomerAddressResponse] = []
     
     model_config = ConfigDict(from_attributes=True)
 
