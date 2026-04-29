@@ -20,6 +20,7 @@ from app.modules.data_import.route import router as data_import_router
 from app.modules.data_copy.route import router as data_copy_router
 from app.modules.homebanner.route import router as homebanner_router
 from app.modules.row_management.route import router as row_management_router
+from app.modules.open_fetch.route import router as open_fetch_router
 from app.routes.upload import router as upload_router
 from app.services.storage_service import init_storage
 
@@ -127,6 +128,7 @@ app.include_router(data_import_router, prefix="/api/v1")
 app.include_router(data_copy_router, prefix="/api/v1")
 app.include_router(homebanner_router, prefix="/api/v1")
 app.include_router(row_management_router, prefix="/api/v1")
+app.include_router(open_fetch_router, prefix="/api/v1")
 app.include_router(upload_router)
 
 
