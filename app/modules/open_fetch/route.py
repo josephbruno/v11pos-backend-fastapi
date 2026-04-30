@@ -30,6 +30,11 @@ from app.modules.product.service import (
 from app.modules.row_management.model import RowType
 from app.modules.row_management.schema import RowManagementResponse
 from app.modules.row_management.service import RowManagementService
+from app.modules.restaurant.schema import RestaurantResponse
+from app.modules.restaurant.service import RestaurantService
+from app.modules.table.model import TableStatus
+from app.modules.table.schema import TableResponse
+from app.modules.table.service import TableService
 from app.modules.user.model import User
 
 
@@ -194,3 +199,79 @@ async def fetch_row_management(
             error_details=str(e),
         )
 
+
+@router.get("/tables/restaurant/{restaurant_id}")
+async def fetch_tables(
+    restaurant_id: str,
+    available_only: bool = False,
+    status: Optional[TableStatus] = None,
+    floor: Optional[str] = None,
+    section: Optional[str] = None,
+    is_active: Optional[bool] = None,
+    is_bookable: Optional[bool] = None,
+    min_capacity: Optional[int] = None,
+    skip: int = 0,
+    limit: int = 100,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Fetch restaurant tables with optional filters."""
+    try:
+        if available_only:
+            tables = await TableService.get_available_tables(
+                db, restaurant_id, capacity=min_capacity
+            )
+        else:
+            tables, _total = await TableService.get_tables(
+                db,
+                restaurant_id,
+                skip=skip,
+                limit=limit,
+                status=status,
+                floor=floor,
+                section=section,
+                is_active=is_active,
+                is_bookable=is_bookable,
+                min_capacity=min_capacity,
+            )
+
+        return success_response(
+            message="Tables retrieved successfully",
+            data=[TableResponse.model_validate(item).model_dump() for item in tables],
+            timezone=getattr(current_user, "timezone", None),
+        )
+    except Exception as e:
+        return error_response(
+            message="Failed to retrieve tables",
+            error_code="INTERNAL_ERROR",
+            error_details=str(e),
+        )
+
+
+@router.get("/restaurants/{restaurant_id}")
+async def fetch_restaurant_details(
+    restaurant_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Fetch restaurant details by restaurant id."""
+    try:
+        restaurant = await RestaurantService.get_restaurant_by_id(db, restaurant_id)
+        if not restaurant:
+            return error_response(
+                message="Restaurant not found",
+                error_code="NOT_FOUND",
+                status_code=404,
+            )
+
+        return success_response(
+            message="Restaurant retrieved successfully",
+            data=RestaurantResponse.model_validate(restaurant).model_dump(),
+            timezone=getattr(current_user, "timezone", None),
+        )
+    except Exception as e:
+        return error_response(
+            message="Failed to retrieve restaurant",
+            error_code="INTERNAL_ERROR",
+            error_details=str(e),
+        )
