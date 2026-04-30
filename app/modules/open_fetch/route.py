@@ -11,7 +11,6 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_active_user
 from app.core.response import error_response, success_response
 from app.modules.homebanner.schema import HomeBannerResponse
 from app.modules.homebanner.service import HomeBannerService
@@ -35,7 +34,6 @@ from app.modules.restaurant.service import RestaurantService
 from app.modules.table.model import TableStatus
 from app.modules.table.schema import TableResponse
 from app.modules.table.service import TableService
-from app.modules.user.model import User
 
 
 router = APIRouter(prefix="/open", tags=["Open Fetch"])
@@ -47,7 +45,6 @@ async def fetch_categories(
     active_only: bool = False,
     skip: int = 0,
     limit: int = 100,
-    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Fetch categories with pagination."""
@@ -58,7 +55,6 @@ async def fetch_categories(
         return success_response(
             message="Categories retrieved successfully",
             data=[CategoryResponse.model_validate(item).model_dump() for item in categories],
-            timezone=getattr(current_user, "timezone", None),
         )
     except Exception as e:
         return error_response(
@@ -126,7 +122,6 @@ async def fetch_modifiers(
     restaurant_id: str,
     skip: int = 0,
     limit: int = 100,
-    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Fetch modifiers with pagination."""
@@ -135,7 +130,6 @@ async def fetch_modifiers(
         return success_response(
             message="Modifiers retrieved successfully",
             data=[ModifierResponse.model_validate(item).model_dump() for item in modifiers],
-            timezone=getattr(current_user, "timezone", None),
         )
     except Exception as e:
         return error_response(
@@ -151,7 +145,6 @@ async def fetch_homebanners(
     active_only: bool = False,
     skip: int = 0,
     limit: int = 100,
-    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Fetch home banners with pagination."""
@@ -162,7 +155,6 @@ async def fetch_homebanners(
         return success_response(
             message="Home banners retrieved successfully",
             data=[HomeBannerResponse.model_validate(item).model_dump() for item in banners],
-            timezone=getattr(current_user, "timezone", None),
         )
     except Exception as e:
         return error_response(
@@ -179,7 +171,6 @@ async def fetch_row_management(
     active_only: bool = False,
     skip: int = 0,
     limit: int = 100,
-    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Fetch row management rows with pagination."""
@@ -190,7 +181,6 @@ async def fetch_row_management(
         return success_response(
             message="Row management retrieved successfully",
             data=[RowManagementResponse.model_validate(item).model_dump(by_alias=True) for item in rows],
-            timezone=getattr(current_user, "timezone", None),
         )
     except Exception as e:
         return error_response(
@@ -212,7 +202,6 @@ async def fetch_tables(
     min_capacity: Optional[int] = None,
     skip: int = 0,
     limit: int = 100,
-    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Fetch restaurant tables with optional filters."""
@@ -238,7 +227,6 @@ async def fetch_tables(
         return success_response(
             message="Tables retrieved successfully",
             data=[TableResponse.model_validate(item).model_dump() for item in tables],
-            timezone=getattr(current_user, "timezone", None),
         )
     except Exception as e:
         return error_response(
@@ -251,7 +239,6 @@ async def fetch_tables(
 @router.get("/restaurants/{restaurant_id}")
 async def fetch_restaurant_details(
     restaurant_id: str,
-    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Fetch restaurant details by restaurant id."""
@@ -267,7 +254,6 @@ async def fetch_restaurant_details(
         return success_response(
             message="Restaurant retrieved successfully",
             data=RestaurantResponse.model_validate(restaurant).model_dump(),
-            timezone=getattr(current_user, "timezone", None),
         )
     except Exception as e:
         return error_response(
