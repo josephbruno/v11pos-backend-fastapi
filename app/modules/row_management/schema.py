@@ -43,7 +43,6 @@ class RowManagementBase(BaseModel):
     end_at: Optional[datetime] = None
     extra_data: Optional[dict] = Field(
         None,
-        validation_alias="metadata",
         serialization_alias="metadata",
     )
 
@@ -70,6 +69,11 @@ class RowManagementBase(BaseModel):
 class RowManagementCreate(RowManagementBase):
     """Schema for creating row management"""
     restaurant_id: str
+    extra_data: Optional[dict] = Field(
+        None,
+        validation_alias="metadata",
+        serialization_alias="metadata",
+    )
 
 
 class RowManagementUpdate(BaseModel):
