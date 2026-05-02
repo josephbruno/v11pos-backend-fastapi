@@ -21,11 +21,92 @@ from app.modules.customer.model import Customer
 router = APIRouter(prefix="/customer-auth", tags=["Customer Authentication"])
 
 
+async def _request_customer_otp(
+    payload: CustomerEmailOTPRequest,
+    request: Request,
+    db: AsyncSession,
+):
+    customer, otp, expires_in = await CustomerAuthService.request_email_otp(
+        db, str(payload.email).lower(), ip_address=_client_ip(request)
+    )
+    await send_customer_email_otp(str(payload.email).lower(), otp)
+
+    data = CustomerEmailOTPRequestResponse(
+        otp_sent=True,
+        expires_in_seconds=expires_in,
+        customer_id=customer.id,
+        development_otp=(otp if settings.is_development else None),
+    ).model_dump()
+    return success_response(message="OTP sent", data=data)
+
+
+async def _verify_customer_otp(payload: CustomerEmailOTPVerify, db: AsyncSession):
+    customer = await CustomerAuthService.verify_email_otp(db, str(payload.email).lower(), payload.otp)
+    customer_full = await CustomerService.get_customer_by_id(db, customer.id)
+    customer_out = customer_full or customer
+    tokens = CustomerAuthService.issue_tokens(customer_out)
+    resp = CustomerAuthTokenResponse(
+        customer=CustomerResponse.model_validate(customer_out),
+        **tokens,
+    )
+    return success_response(
+        message="OTP verified successfully",
+        data=resp.model_dump(),
+    )
+
+
 def _client_ip(request: Request) -> str:
     forwarded = request.headers.get("X-Forwarded-For")
     if forwarded:
         return forwarded.split(",")[0].strip()
     return request.client.host if request.client else "unknown"
+
+
+@router.post("/send-otp", response_model=None)
+async def send_otp(
+    payload: CustomerEmailOTPRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Step 1 — Customer authentication: send a one-time code to the customer's email.
+
+    Next call **POST /customer-auth/verify-otp** with the same email and the OTP.
+    """
+    try:
+        return await _request_customer_otp(payload, request, db)
+    except CustomerAuthError as e:
+        return error_response(
+            message=str(e),
+            error_code=e.code,
+            error_details=str(e),
+            status_code=e.status_code,
+        )
+    except Exception as e:
+        return error_response(message="Failed to send OTP", error_code="INTERNAL_ERROR", error_details=str(e))
+
+
+@router.post("/verify-otp", response_model=None)
+async def verify_otp(
+    payload: CustomerEmailOTPVerify,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Step 2 — Customer authentication: verify the OTP.
+
+    On success, **data** includes **customer** (full profile) and JWT **access_token** / **refresh_token**.
+    """
+    try:
+        return await _verify_customer_otp(payload, db)
+    except CustomerAuthError as e:
+        return error_response(
+            message=str(e),
+            error_code=e.code,
+            error_details=str(e),
+            status_code=e.status_code,
+        )
+    except Exception as e:
+        return error_response(message="Failed to verify OTP", error_code="INTERNAL_ERROR", error_details=str(e))
 
 
 @router.post("/email/request-otp", response_model=None)
@@ -34,19 +115,9 @@ async def request_email_otp(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
+    """Same as **POST /customer-auth/send-otp** (kept for backward compatibility)."""
     try:
-        customer, otp, expires_in = await CustomerAuthService.request_email_otp(
-            db, str(payload.email).lower(), ip_address=_client_ip(request)
-        )
-        await send_customer_email_otp(str(payload.email).lower(), otp)
-
-        data = CustomerEmailOTPRequestResponse(
-            otp_sent=True,
-            expires_in_seconds=expires_in,
-            customer_id=customer.id,
-            development_otp=(otp if settings.is_development else None),
-        ).model_dump()
-        return success_response(message="OTP generated", data=data)
+        return await _request_customer_otp(payload, request, db)
     except CustomerAuthError as e:
         return error_response(
             message=str(e),
@@ -63,14 +134,9 @@ async def verify_email_otp(
     payload: CustomerEmailOTPVerify,
     db: AsyncSession = Depends(get_db),
 ):
+    """Same as **POST /customer-auth/verify-otp** (kept for backward compatibility)."""
     try:
-        customer = await CustomerAuthService.verify_email_otp(db, str(payload.email).lower(), payload.otp)
-        tokens = CustomerAuthService.issue_tokens(customer)
-        resp = CustomerAuthTokenResponse(
-            **tokens,
-            customer=CustomerResponse.model_validate(customer),
-        )
-        return success_response(message="Login successful", data=resp.model_dump())
+        return await _verify_customer_otp(payload, db)
     except CustomerAuthError as e:
         return error_response(
             message=str(e),

@@ -6,6 +6,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.modules.product.schema import CategoryResponse, ComboProductResponse, ProductResponse
 from app.modules.row_management.model import RowType
 
 
@@ -128,5 +129,15 @@ class RowManagementResponse(RowManagementBase):
     created_at: datetime
     updated_at: datetime
     deleted_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RowManagementOpenFetchResponse(RowManagementResponse):
+    """Row payload for public/open APIs: includes resolved catalog entities for configured IDs."""
+
+    category_items: Optional[list[CategoryResponse]] = None
+    product_items: Optional[list[ProductResponse]] = None
+    combo_product_items: Optional[list[ComboProductResponse]] = None
 
     model_config = ConfigDict(from_attributes=True)

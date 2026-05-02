@@ -75,6 +75,30 @@ class CategoryService:
         """Get category by ID"""
         result = await db.execute(select(Category).where(Category.id == category_id))
         return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_categories_by_ids(
+        db: AsyncSession,
+        restaurant_id: str,
+        category_ids: List[str],
+    ) -> List[Category]:
+        """Get non-deleted categories by IDs, scoped to a restaurant."""
+        if not category_ids:
+            return []
+        result = await db.execute(
+            select(Category)
+            .options(joinedload(Category.restaurant))
+            .where(
+                Category.restaurant_id == restaurant_id,
+                Category.id.in_(category_ids),
+                Category.deleted_at.is_(None),
+            )
+        )
+        categories = list(result.scalars().unique().all())
+        for category in categories:
+            if getattr(category, "restaurant", None) is not None:
+                category.restaurant_name = category.restaurant.name
+        return categories
     
     @staticmethod
     async def get_categories_by_restaurant(
@@ -181,11 +205,18 @@ class ProductService:
         return result.scalar_one_or_none()
 
     @staticmethod
-    async def get_products_by_ids(db: AsyncSession, product_ids: List[str]) -> List[Product]:
-        """Get products by IDs (order not guaranteed)."""
+    async def get_products_by_ids(
+        db: AsyncSession,
+        product_ids: List[str],
+        restaurant_id: Optional[str] = None,
+    ) -> List[Product]:
+        """Get products by IDs (order not guaranteed). Optionally scope to a restaurant."""
         if not product_ids:
             return []
-        result = await db.execute(select(Product).where(Product.id.in_(product_ids)))
+        q = select(Product).where(Product.id.in_(product_ids))
+        if restaurant_id is not None:
+            q = q.where(Product.restaurant_id == restaurant_id)
+        result = await db.execute(q)
         return list(result.scalars().all())
     
     @staticmethod
@@ -551,6 +582,23 @@ class ComboProductService:
         """Get combo by ID"""
         result = await db.execute(select(ComboProduct).where(ComboProduct.id == combo_id))
         return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_combos_by_ids(
+        db: AsyncSession,
+        restaurant_id: str,
+        combo_ids: List[str],
+    ) -> List[ComboProduct]:
+        """Get combo products by IDs, scoped to a restaurant."""
+        if not combo_ids:
+            return []
+        result = await db.execute(
+            select(ComboProduct).where(
+                ComboProduct.restaurant_id == restaurant_id,
+                ComboProduct.id.in_(combo_ids),
+            )
+        )
+        return list(result.scalars().all())
     
     @staticmethod
     async def get_combos_by_restaurant(

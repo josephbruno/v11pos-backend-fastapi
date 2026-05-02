@@ -20,10 +20,12 @@ class CustomerRefreshTokenRequest(BaseModel):
 
 
 class CustomerAuthTokenResponse(BaseModel):
+    """Returned after successful OTP verification: customer profile plus JWT credentials."""
+
+    customer: CustomerResponse
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
-    customer: CustomerResponse
 
     model_config = ConfigDict(from_attributes=True)
 

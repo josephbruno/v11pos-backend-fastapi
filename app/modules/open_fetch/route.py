@@ -27,7 +27,6 @@ from app.modules.product.service import (
     ProductService,
 )
 from app.modules.row_management.model import RowType
-from app.modules.row_management.schema import RowManagementResponse
 from app.modules.row_management.service import RowManagementService
 from app.modules.restaurant.schema import RestaurantResponse
 from app.modules.restaurant.service import RestaurantService
@@ -173,14 +172,14 @@ async def fetch_row_management(
     limit: int = 100,
     db: AsyncSession = Depends(get_db),
 ):
-    """Fetch row management rows with pagination."""
+    """Fetch row management rows with pagination; includes category/product/combo details for configured IDs."""
     try:
-        rows = await RowManagementService.get_rows_by_restaurant(
+        rows = await RowManagementService.get_rows_by_restaurant_with_catalog(
             db, restaurant_id, row_type, active_only, skip, limit
         )
         return success_response(
             message="Row management retrieved successfully",
-            data=[RowManagementResponse.model_validate(item).model_dump(by_alias=True) for item in rows],
+            data=[item.model_dump(by_alias=True) for item in rows],
         )
     except Exception as e:
         return error_response(

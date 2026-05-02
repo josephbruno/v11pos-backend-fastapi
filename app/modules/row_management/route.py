@@ -200,14 +200,14 @@ async def get_row_management_list(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get row management list for a restaurant"""
+    """Get row management list for a restaurant (includes resolved category/product/combo payloads)."""
     try:
-        rows = await RowManagementService.get_rows_by_restaurant(
+        rows = await RowManagementService.get_rows_by_restaurant_with_catalog(
             db, restaurant_id, row_type, active_only, skip, limit
         )
         return success_response(
             message="Row management retrieved successfully",
-            data=[RowManagementResponse.model_validate(item).model_dump(by_alias=True) for item in rows],
+            data=[item.model_dump(by_alias=True) for item in rows],
             timezone=getattr(current_user, "timezone", None),
         )
     except Exception as e:

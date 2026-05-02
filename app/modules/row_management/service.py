@@ -2,14 +2,29 @@
 Row management service layer
 """
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, TypeVar
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.product.model import Category, ComboProduct, Product
+from app.modules.product.schema import CategoryResponse, ComboProductResponse, ProductResponse
+from app.modules.product.service import CategoryService, ComboProductService, ProductService
 from app.modules.row_management.model import RowManagement, RowType
-from app.modules.row_management.schema import RowManagementCreate, RowManagementUpdate
+from app.modules.row_management.schema import (
+    RowManagementCreate,
+    RowManagementOpenFetchResponse,
+    RowManagementResponse,
+    RowManagementUpdate,
+)
+
+T = TypeVar("T")
+
+
+def _entities_in_id_order(entities: List[T], id_order: List[str]) -> List[T]:
+    """Preserve list order from id_order; skip IDs with no matching entity."""
+    by_id = {getattr(e, "id"): e for e in entities}
+    return [by_id[i] for i in id_order if i in by_id]
 
 
 class DuplicateError(Exception):
@@ -124,6 +139,68 @@ class RowManagementService:
         query = query.order_by(RowManagement.sort_order, RowManagement.name).offset(skip).limit(limit)
         result = await db.execute(query)
         return list(result.scalars().all())
+
+    @staticmethod
+    async def get_rows_by_restaurant_with_catalog(
+        db: AsyncSession,
+        restaurant_id: str,
+        row_type: Optional[RowType] = None,
+        active_only: bool = False,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[RowManagementOpenFetchResponse]:
+        """
+        Same as get_rows_by_restaurant, plus category_items / product_items / combo_product_items
+        populated from *_ids (order matches the stored ID lists; missing IDs are skipped).
+        """
+        rows = await RowManagementService.get_rows_by_restaurant(
+            db, restaurant_id, row_type, active_only, skip, limit
+        )
+        cat_ids: list[str] = []
+        prod_ids: list[str] = []
+        combo_ids: list[str] = []
+        for row in rows:
+            if row.category_ids:
+                cat_ids.extend(row.category_ids)
+            if row.product_ids:
+                prod_ids.extend(row.product_ids)
+            if row.combo_product_ids:
+                combo_ids.extend(row.combo_product_ids)
+
+        uniq_cat = list(dict.fromkeys(cat_ids))
+        uniq_prod = list(dict.fromkeys(prod_ids))
+        uniq_combo = list(dict.fromkeys(combo_ids))
+
+        categories = await CategoryService.get_categories_by_ids(db, restaurant_id, uniq_cat)
+        products = await ProductService.get_products_by_ids(db, uniq_prod, restaurant_id=restaurant_id)
+        combos = await ComboProductService.get_combos_by_ids(db, restaurant_id, uniq_combo)
+
+        out: list[RowManagementOpenFetchResponse] = []
+        for row in rows:
+            base_kw = RowManagementResponse.model_validate(row).model_dump()
+            cat_order = row.category_ids or []
+            prod_order = row.product_ids or []
+            combo_order = row.combo_product_ids or []
+
+            cat_entities = _entities_in_id_order(categories, cat_order) if cat_order else []
+            prod_entities = _entities_in_id_order(products, prod_order) if prod_order else []
+            combo_entities = _entities_in_id_order(combos, combo_order) if combo_order else []
+
+            out.append(
+                RowManagementOpenFetchResponse(
+                    **base_kw,
+                    category_items=[CategoryResponse.model_validate(c) for c in cat_entities]
+                    if cat_entities
+                    else None,
+                    product_items=[ProductResponse.model_validate(p) for p in prod_entities]
+                    if prod_entities
+                    else None,
+                    combo_product_items=[ComboProductResponse.model_validate(c) for c in combo_entities]
+                    if combo_entities
+                    else None,
+                )
+            )
+        return out
 
     @staticmethod
     async def update_row(
