@@ -35,7 +35,9 @@ async def _request_customer_otp(
         payload.restaurant_id,
         ip_address=_client_ip(request),
     )
-    email_sent = await send_customer_email_otp(str(payload.email).lower(), otp)
+    email_sent = await send_customer_email_otp(
+        db, str(payload.email).lower(), otp, payload.restaurant_id
+    )
     _log.info(
         "customer-auth request-otp done email=%s email_sent=%s customer_id=%s",
         str(payload.email).lower(),

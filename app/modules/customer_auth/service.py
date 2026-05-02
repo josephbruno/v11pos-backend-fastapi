@@ -15,6 +15,11 @@ from app.core.config import settings
 from app.core.security import create_access_token, create_refresh_token, decode_token, get_password_hash, verify_password
 from app.modules.customer.model import Customer
 from app.modules.customer.service import CustomerService
+from app.modules.customer_auth.email_templates import (
+    RestaurantEmailContext,
+    build_customer_otp_email,
+    restaurant_to_email_context,
+)
 from app.modules.customer_auth.model import CustomerEmailOTP
 from app.modules.restaurant.service import RestaurantService
 
@@ -190,14 +195,21 @@ class CustomerAuthService:
         }
 
 
-def _send_plain_email_sync(to_email: str, subject: str, body: str) -> None:
-    """Blocking SMTP send (run via asyncio.to_thread)."""
+def _send_otp_email_multipart_sync(
+    to_email: str,
+    subject: str,
+    plain_body: str,
+    html_body: str,
+    from_display_name: Optional[str] = None,
+) -> None:
+    """Blocking SMTP send: multipart/alternative plain + HTML (run via asyncio.to_thread)."""
     from_email = settings.SMTP_FROM_EMAIL or settings.SMTP_USER
     if not from_email:
         raise ValueError("Set SENDER_EMAIL / SMTP_FROM_EMAIL or SMTP_USER / SMTP_USERNAME to send email")
 
-    if settings.SENDER_NAME:
-        from_header = formataddr((settings.SENDER_NAME, from_email))
+    display = (from_display_name or settings.SENDER_NAME or "").strip()
+    if display:
+        from_header = formataddr((display[:200], from_email))
     else:
         from_header = from_email
 
@@ -205,7 +217,8 @@ def _send_plain_email_sync(to_email: str, subject: str, body: str) -> None:
     msg["Subject"] = subject
     msg["From"] = from_header
     msg["To"] = to_email
-    msg.set_content(body)
+    msg.set_content(plain_body, subtype="plain", charset="utf-8")
+    msg.add_alternative(html_body, subtype="html", charset="utf-8")
 
     host = settings.SMTP_HOST
     port = settings.SMTP_PORT
@@ -239,18 +252,24 @@ def _send_plain_email_sync(to_email: str, subject: str, body: str) -> None:
     logger.info("SMTP server accepted message to=%s", to_email)
 
 
-async def send_customer_email_otp(to_email: str, otp: str) -> bool:
+async def send_customer_email_otp(
+    db: AsyncSession,
+    to_email: str,
+    otp: str,
+    restaurant_id: str,
+) -> bool:
     """
-    Send the OTP to the customer's email via SMTP when SMTP_HOST is configured.
+    Send the OTP via SMTP (multipart HTML + plain text) with inline restaurant branding.
 
     Returns True if the message was accepted by SMTP, False if EMAIL_ENABLED is false,
     SMTP is not configured, or delivery failed (failure is logged; OTP already exists in the database).
     """
     logger.info(
-        "Customer OTP email: checking to=%s email_enabled=%s smtp_host_set=%s",
+        "Customer OTP email: checking to=%s email_enabled=%s smtp_host_set=%s restaurant_id=%s",
         to_email,
         settings.EMAIL_ENABLED,
         bool(settings.SMTP_HOST),
+        restaurant_id,
     )
 
     if not settings.EMAIL_ENABLED:
@@ -266,13 +285,30 @@ async def send_customer_email_otp(to_email: str, otp: str) -> bool:
         )
         return False
 
-    subject = "Your login verification code"
-    body = (
-        f"Your one-time code is: {otp}\n\n"
-        "It expires in 10 minutes. If you did not request this, you can ignore this email."
+    restaurant = await RestaurantService.get_restaurant_by_id(db, restaurant_id)
+    if restaurant:
+        ctx = restaurant_to_email_context(restaurant)
+    else:
+        logger.warning("Restaurant %s not found for OTP email; using generic template", restaurant_id)
+        ctx = RestaurantEmailContext(name="Restaurant", business_name="Restaurant")
+
+    expiry_minutes = max(1, CustomerAuthService.OTP_TTL_SECONDS // 60)
+    subject, plain_body, html_body = build_customer_otp_email(
+        otp=otp,
+        restaurant=ctx,
+        expiry_minutes=expiry_minutes,
     )
+    from_display = (ctx.business_name or ctx.name or settings.SENDER_NAME or "").strip() or None
+
     try:
-        await asyncio.to_thread(_send_plain_email_sync, to_email, subject, body)
+        await asyncio.to_thread(
+            _send_otp_email_multipart_sync,
+            to_email,
+            subject,
+            plain_body,
+            html_body,
+            from_display,
+        )
         logger.info("Customer OTP email_sent=true to=%s", to_email)
         return True
     except Exception:
