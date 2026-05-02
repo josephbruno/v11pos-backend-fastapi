@@ -14,7 +14,7 @@ from app.modules.cart.model import (
     CartStatus,
 )
 from app.modules.customer.model import Customer
-from app.modules.product.model import ComboProduct, ModifierOption, Product
+from app.modules.product.model import Category, ComboProduct, ModifierOption, Product
 
 
 class CartValidationError(ValueError):
@@ -252,4 +252,41 @@ class CartService:
             by_item.setdefault(link.cart_item_id, []).append(link.modifier_option_id)
 
         return [CartItemWithModifiers(item=i, modifier_option_ids=sorted(by_item.get(i.id, []))) for i in items]
+
+    @staticmethod
+    async def load_catalog_maps_for_cart_entries(
+        db: AsyncSession,
+        entries: List[CartItemWithModifiers],
+    ) -> tuple[dict[str, Product], dict[str, ComboProduct], dict[str, str]]:
+        """
+        Batch-load products, combo products, and category names for cart line display.
+        """
+        product_ids = {e.item.product_id for e in entries if e.item.product_id}
+        combo_ids = {e.item.combo_product_id for e in entries if e.item.combo_product_id}
+
+        products: dict[str, Product] = {}
+        if product_ids:
+            res = await db.execute(select(Product).where(Product.id.in_(product_ids)))
+            for row in res.scalars().unique().all():
+                products[row.id] = row
+
+        combos: dict[str, ComboProduct] = {}
+        if combo_ids:
+            res = await db.execute(select(ComboProduct).where(ComboProduct.id.in_(combo_ids)))
+            for row in res.scalars().unique().all():
+                combos[row.id] = row
+
+        cat_ids: set[str] = set()
+        for p in products.values():
+            cat_ids.add(p.category_id)
+        for c in combos.values():
+            cat_ids.add(c.category_id)
+
+        category_names: dict[str, str] = {}
+        if cat_ids:
+            res = await db.execute(select(Category).where(Category.id.in_(cat_ids)))
+            for cat in res.scalars().all():
+                category_names[cat.id] = cat.name
+
+        return products, combos, category_names
 

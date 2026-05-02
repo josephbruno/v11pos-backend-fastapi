@@ -313,6 +313,13 @@ Use **`id`** and **`restaurant_id`** from **`GET /customer-auth/me`** (or the ve
 Returns the active cart (creates one if needed).  
 **Auth:** Bearer (customer or staff).
 
+Each element in **`data.items`** includes optional catalog snapshots:
+
+- **`product`** — when `item_type` is `product`: `name`, `slug`, `sku`, `description`, `short_description`, **`price`** (current list price in smallest currency unit), `image`, `thumbnail`, `category_id`, **`category_name`**, `available`. Omitted (`null`) if the product no longer exists.
+- **`combo_product`** — when `item_type` is `combo_product`: `name`, `slug`, `description`, `price`, `image`, `category_id`, `category_name`, `available`, `featured`. Omitted if the combo was removed.
+
+Line totals still use **`unit_price`**, **`modifiers_price`**, and **`quantity`** from the cart row (what was charged when added); compare to **`product.price`** / **`combo_product.price`** if the catalog price changed since add-to-cart.
+
 #### `POST /api/v1/carts/items`
 
 **Auth:** Bearer (customer or staff).

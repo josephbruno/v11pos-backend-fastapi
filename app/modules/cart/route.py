@@ -9,9 +9,11 @@ from app.core.database import get_db
 from app.core.dependencies import CartAuthContext, get_cart_auth_context
 from app.core.response import error_response, success_response
 from app.modules.cart.schema import (
+    CartComboProductSummary,
     CartItemAddRequest,
     CartItemResponse,
     CartItemUpdateRequest,
+    CartProductSummary,
     CartResponse,
 )
 from app.modules.cart.service import CartService, CartValidationError
@@ -22,6 +24,9 @@ router = APIRouter(prefix="/carts", tags=["Cart"])
 
 async def _build_cart_response(db: AsyncSession, cart) -> CartResponse:
     items_with_mods = await CartService.get_cart_items_with_modifier_options(db, cart.id)
+    products_by_id, combos_by_id, category_names = await CartService.load_catalog_maps_for_cart_entries(
+        db, items_with_mods
+    )
     items: list[CartItemResponse] = []
     subtotal = 0
     total_qty = 0
@@ -30,6 +35,42 @@ async def _build_cart_response(db: AsyncSession, cart) -> CartResponse:
         total_price = (int(item.unit_price or 0) + int(item.modifiers_price or 0)) * int(item.quantity or 0)
         subtotal += total_price
         total_qty += int(item.quantity or 0)
+
+        prod_summary: CartProductSummary | None = None
+        combo_summary: CartComboProductSummary | None = None
+        if item.product_id:
+            p = products_by_id.get(item.product_id)
+            if p:
+                prod_summary = CartProductSummary(
+                    id=p.id,
+                    name=p.name,
+                    slug=p.slug,
+                    sku=p.sku,
+                    description=p.description,
+                    short_description=p.short_description,
+                    price=int(p.price or 0),
+                    image=p.image,
+                    thumbnail=p.thumbnail,
+                    category_id=p.category_id,
+                    category_name=category_names.get(p.category_id),
+                    available=bool(p.available),
+                )
+        elif item.combo_product_id:
+            c = combos_by_id.get(item.combo_product_id)
+            if c:
+                combo_summary = CartComboProductSummary(
+                    id=c.id,
+                    name=c.name,
+                    slug=c.slug,
+                    description=c.description,
+                    price=int(c.price or 0),
+                    image=c.image,
+                    category_id=c.category_id,
+                    category_name=category_names.get(c.category_id),
+                    available=bool(c.available),
+                    featured=bool(c.featured),
+                )
+
         items.append(
             CartItemResponse(
                 id=item.id,
@@ -46,6 +87,8 @@ async def _build_cart_response(db: AsyncSession, cart) -> CartResponse:
                 notes=item.notes,
                 created_at=item.created_at,
                 updated_at=item.updated_at,
+                product=prod_summary,
+                combo_product=combo_summary,
             )
         )
 

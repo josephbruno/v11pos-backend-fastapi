@@ -37,6 +37,42 @@ class CartItemUpdateRequest(BaseModel):
     quantity: int = Field(..., ge=1)
 
 
+class CartProductSummary(BaseModel):
+    """Current catalog details for a product line (may be null if product was removed)."""
+
+    id: str
+    name: str
+    slug: str
+    sku: Optional[str] = None
+    description: Optional[str] = None
+    short_description: Optional[str] = None
+    price: int
+    image: Optional[str] = None
+    thumbnail: Optional[str] = None
+    category_id: str
+    category_name: Optional[str] = None
+    available: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CartComboProductSummary(BaseModel):
+    """Current catalog details for a combo line (may be null if combo was removed)."""
+
+    id: str
+    name: str
+    slug: str
+    description: Optional[str] = None
+    price: int
+    image: Optional[str] = None
+    category_id: str
+    category_name: Optional[str] = None
+    available: bool
+    featured: bool = False
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class CartItemResponse(BaseModel):
     id: str
     cart_id: str
@@ -52,6 +88,8 @@ class CartItemResponse(BaseModel):
     notes: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    product: Optional[CartProductSummary] = None
+    combo_product: Optional[CartComboProductSummary] = None
 
     model_config = ConfigDict(from_attributes=True)
 
