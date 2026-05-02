@@ -1,6 +1,21 @@
-from pydantic import AliasChoices, Field
+from typing import Annotated, Any, Literal
+
+from pydantic import AliasChoices, BeforeValidator, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Literal
+
+
+def _parse_bool_env(v: Any) -> bool:
+    """Parse booleans from .env / Docker (strings like true, True, 1, yes, on)."""
+    if v is None:
+        return False
+    if isinstance(v, bool):
+        return v
+    s = str(v).strip().strip('"').strip("'").lower()
+    if s in ("", "0", "false", "no", "off", "n"):
+        return False
+    if s in ("1", "true", "yes", "on", "y"):
+        return True
+    return False
 
 
 class Settings(BaseSettings):
@@ -28,7 +43,7 @@ class Settings(BaseSettings):
     MINIO_ACCESS_KEY: str
     MINIO_SECRET_KEY: str
     MINIO_BUCKET: str = "uploads"
-    MINIO_SECURE: bool = False
+    MINIO_SECURE: Annotated[bool, BeforeValidator(_parse_bool_env)] = False
     # Optional public endpoint for URL generation (defaults to MINIO_ENDPOINT)
     MINIO_PUBLIC_ENDPOINT: str | None = None
 
@@ -48,10 +63,10 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("SMTP_FROM_EMAIL", "SENDER_EMAIL"),
     )
     SENDER_NAME: str | None = None
-    SMTP_USE_TLS: bool = True
-    SMTP_USE_SSL: bool = False
+    SMTP_USE_TLS: Annotated[bool, BeforeValidator(_parse_bool_env)] = True
+    SMTP_USE_SSL: Annotated[bool, BeforeValidator(_parse_bool_env)] = False
     # When false, customer OTP emails are never sent (OTP still created; use development_otp in dev).
-    EMAIL_ENABLED: bool = False
+    EMAIL_ENABLED: Annotated[bool, BeforeValidator(_parse_bool_env)] = False
 
     model_config = SettingsConfigDict(
         env_file=".env",

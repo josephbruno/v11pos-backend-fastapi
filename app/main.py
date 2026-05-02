@@ -38,6 +38,10 @@ async def lifespan(app: FastAPI):
     configure_customer_auth_logging()
     print("🚀 Starting application...")
     print(f"📝 Environment: {settings.APP_ENV}")
+    print(
+        f"📧 Customer OTP email: EMAIL_ENABLED={settings.EMAIL_ENABLED} "
+        f"(set EMAIL_ENABLED=true in .env or container env to send via SMTP)"
+    )
     print(f"🗄️  Database: {settings.DB_NAME} @ {settings.DB_HOST}:{settings.DB_PORT}")
     
     # Initialize database
