@@ -31,7 +31,10 @@ class CustomerAuthTokenResponse(BaseModel):
 
 
 class CustomerEmailOTPRequestResponse(BaseModel):
+    """OTP request result: otp_sent means a code was stored; email_sent means SMTP accepted the message."""
+
     otp_sent: bool = True
+    email_sent: bool = False
     expires_in_seconds: int
     development_otp: Optional[str] = None
     customer_id: Optional[str] = None

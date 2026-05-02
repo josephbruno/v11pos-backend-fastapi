@@ -1,5 +1,10 @@
+import asyncio
+import logging
 import random
+import smtplib
+import ssl
 from datetime import datetime
+from email.message import EmailMessage
 from typing import Optional
 
 from sqlalchemy import desc, select
@@ -10,6 +15,8 @@ from app.core.security import create_access_token, create_refresh_token, decode_
 from app.modules.customer.model import Customer
 from app.modules.customer.service import CustomerService
 from app.modules.customer_auth.model import CustomerEmailOTP
+
+logger = logging.getLogger(__name__)
 
 
 class CustomerAuthError(Exception):
@@ -154,13 +161,57 @@ class CustomerAuthService:
         }
 
 
-async def send_customer_email_otp(email: str, otp: str) -> None:
+def _send_plain_email_sync(to_email: str, subject: str, body: str) -> None:
+    """Blocking SMTP send (run via asyncio.to_thread)."""
+    from_addr = settings.SMTP_FROM_EMAIL or settings.SMTP_USER
+    if not from_addr:
+        raise ValueError("Set SMTP_FROM_EMAIL or SMTP_USER to send email")
+
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = from_addr
+    msg["To"] = to_email
+    msg.set_content(body)
+
+    host = settings.SMTP_HOST
+    port = settings.SMTP_PORT
+    ctx = ssl.create_default_context()
+
+    if settings.SMTP_USE_SSL:
+        with smtplib.SMTP_SSL(host, port, context=ctx, timeout=30) as smtp:
+            if settings.SMTP_USER:
+                smtp.login(settings.SMTP_USER, settings.SMTP_PASSWORD or "")
+            smtp.send_message(msg)
+    else:
+        with smtplib.SMTP(host, port, timeout=30) as smtp:
+            smtp.ehlo()
+            if settings.SMTP_USE_TLS:
+                smtp.starttls(context=ctx)
+                smtp.ehlo()
+            if settings.SMTP_USER:
+                smtp.login(settings.SMTP_USER, settings.SMTP_PASSWORD or "")
+            smtp.send_message(msg)
+
+
+async def send_customer_email_otp(to_email: str, otp: str) -> bool:
     """
-    Placeholder for email delivery.
-    If SMTP is not configured, we intentionally do nothing (OTP is only returned in development via API response).
+    Send the OTP to the customer's email via SMTP when SMTP_HOST is configured.
+
+    Returns True if the message was accepted by SMTP, False if SMTP is not configured
+    or delivery failed (failure is logged; OTP already exists in the database).
     """
-    if not getattr(settings, "SMTP_HOST", None):
-        return
-    # SMTP sending is intentionally not implemented to avoid introducing blocking IO or new dependencies.
-    # Integrate your preferred provider (SMTP/SES/SendGrid/etc) here.
-    return
+    if not settings.SMTP_HOST:
+        logger.debug("SMTP_HOST is not set; skipping OTP email to %s", to_email)
+        return False
+
+    subject = "Your login verification code"
+    body = (
+        f"Your one-time code is: {otp}\n\n"
+        "It expires in 10 minutes. If you did not request this, you can ignore this email."
+    )
+    try:
+        await asyncio.to_thread(_send_plain_email_sync, to_email, subject, body)
+        return True
+    except Exception:
+        logger.exception("Failed to send OTP email to %s", to_email)
+        return False

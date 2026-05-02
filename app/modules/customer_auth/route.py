@@ -29,10 +29,11 @@ async def _request_customer_otp(
     customer, otp, expires_in = await CustomerAuthService.request_email_otp(
         db, str(payload.email).lower(), ip_address=_client_ip(request)
     )
-    await send_customer_email_otp(str(payload.email).lower(), otp)
+    email_sent = await send_customer_email_otp(str(payload.email).lower(), otp)
 
     data = CustomerEmailOTPRequestResponse(
         otp_sent=True,
+        email_sent=email_sent,
         expires_in_seconds=expires_in,
         customer_id=customer.id,
         development_otp=(otp if settings.is_development else None),

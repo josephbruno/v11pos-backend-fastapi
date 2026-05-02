@@ -30,7 +30,16 @@ class Settings(BaseSettings):
     MINIO_SECURE: bool = False
     # Optional public endpoint for URL generation (defaults to MINIO_ENDPOINT)
     MINIO_PUBLIC_ENDPOINT: str | None = None
-    
+
+    # SMTP (optional). When SMTP_HOST is set, customer OTP emails are sent via SMTP.
+    SMTP_HOST: str | None = None
+    SMTP_PORT: int = 587
+    SMTP_USER: str | None = None
+    SMTP_PASSWORD: str | None = None
+    SMTP_FROM_EMAIL: str | None = None
+    SMTP_USE_TLS: bool = True
+    SMTP_USE_SSL: bool = False
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
