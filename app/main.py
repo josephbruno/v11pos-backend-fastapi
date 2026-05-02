@@ -2,7 +2,9 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from contextlib import asynccontextmanager
+
 from app.core.config import settings
+from app.core.logging_config import configure_customer_auth_logging
 from app.core.database import init_db, close_db
 from app.core.response import success_response
 from app.modules.auth.route import router as auth_router
@@ -33,6 +35,7 @@ async def lifespan(app: FastAPI):
     Lifespan context manager for startup and shutdown events
     """
     # Startup
+    configure_customer_auth_logging()
     print("🚀 Starting application...")
     print(f"📝 Environment: {settings.APP_ENV}")
     print(f"🗄️  Database: {settings.DB_NAME} @ {settings.DB_HOST}:{settings.DB_PORT}")
