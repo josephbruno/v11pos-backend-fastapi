@@ -183,6 +183,16 @@ def _send_plain_email_sync(to_email: str, subject: str, body: str) -> None:
     port = settings.SMTP_PORT
     ctx = ssl.create_default_context()
 
+    logger.info(
+        "SMTP send starting to=%s host=%s port=%s use_tls=%s use_ssl=%s login_user_set=%s",
+        to_email,
+        host,
+        port,
+        settings.SMTP_USE_TLS,
+        settings.SMTP_USE_SSL,
+        bool(settings.SMTP_USER),
+    )
+
     if settings.SMTP_USE_SSL:
         with smtplib.SMTP_SSL(host, port, context=ctx, timeout=30) as smtp:
             if settings.SMTP_USER:
@@ -198,6 +208,8 @@ def _send_plain_email_sync(to_email: str, subject: str, body: str) -> None:
                 smtp.login(settings.SMTP_USER, settings.SMTP_PASSWORD or "")
             smtp.send_message(msg)
 
+    logger.info("SMTP server accepted message to=%s", to_email)
+
 
 async def send_customer_email_otp(to_email: str, otp: str) -> bool:
     """
@@ -206,11 +218,24 @@ async def send_customer_email_otp(to_email: str, otp: str) -> bool:
     Returns True if the message was accepted by SMTP, False if EMAIL_ENABLED is false,
     SMTP is not configured, or delivery failed (failure is logged; OTP already exists in the database).
     """
+    logger.info(
+        "Customer OTP email: checking to=%s email_enabled=%s smtp_host_set=%s",
+        to_email,
+        settings.EMAIL_ENABLED,
+        bool(settings.SMTP_HOST),
+    )
+
     if not settings.EMAIL_ENABLED:
-        logger.debug("EMAIL_ENABLED is false; skipping OTP email to %s", to_email)
+        logger.info(
+            "Customer OTP email_sent=false reason=EMAIL_DISABLED to=%s",
+            to_email,
+        )
         return False
     if not settings.SMTP_HOST:
-        logger.debug("SMTP host is not set; skipping OTP email to %s", to_email)
+        logger.info(
+            "Customer OTP email_sent=false reason=NO_SMTP_HOST to=%s",
+            to_email,
+        )
         return False
 
     subject = "Your login verification code"
@@ -220,7 +245,11 @@ async def send_customer_email_otp(to_email: str, otp: str) -> bool:
     )
     try:
         await asyncio.to_thread(_send_plain_email_sync, to_email, subject, body)
+        logger.info("Customer OTP email_sent=true to=%s", to_email)
         return True
     except Exception:
-        logger.exception("Failed to send OTP email to %s", to_email)
+        logger.exception(
+            "Customer OTP email_sent=false reason=SMTP_ERROR to=%s",
+            to_email,
+        )
         return False

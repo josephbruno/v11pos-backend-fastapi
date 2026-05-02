@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +21,7 @@ from app.modules.customer.model import Customer
 
 
 router = APIRouter(prefix="/customer-auth", tags=["Customer Authentication"])
+_log = logging.getLogger(__name__)
 
 
 async def _request_customer_otp(
@@ -30,6 +33,12 @@ async def _request_customer_otp(
         db, str(payload.email).lower(), ip_address=_client_ip(request)
     )
     email_sent = await send_customer_email_otp(str(payload.email).lower(), otp)
+    _log.info(
+        "customer-auth request-otp done email=%s email_sent=%s customer_id=%s",
+        str(payload.email).lower(),
+        email_sent,
+        customer.id,
+    )
 
     data = CustomerEmailOTPRequestResponse(
         otp_sent=True,
