@@ -16,6 +16,7 @@ from app.core.security import create_access_token, create_refresh_token, decode_
 from app.modules.customer.model import Customer
 from app.modules.customer.service import CustomerService
 from app.modules.customer_auth.model import CustomerEmailOTP
+from app.modules.restaurant.service import RestaurantService
 
 logger = logging.getLogger(__name__)
 
@@ -37,14 +38,21 @@ class CustomerAuthService:
         return f"{random.randint(0, 999999):06d}"
 
     @staticmethod
-    async def _get_or_create_customer_by_email(db: AsyncSession, email: str) -> Customer:
-        customer = await CustomerService.get_customer_by_email(db, email)
+    async def _get_or_create_customer_by_email(
+        db: AsyncSession, email: str, restaurant_id: str
+    ) -> Customer:
+        customer = await CustomerService.get_customer_by_email(db, email, restaurant_id)
         if customer:
             return customer
 
-        # Minimal bootstrap customer record if this is their first login.
+        # Minimal bootstrap customer record if this is their first login at this restaurant.
         derived_name = (email.split("@", 1)[0] or "Customer").strip()[:255] or "Customer"
-        customer = Customer(name=derived_name, email=email, is_active=True)
+        customer = Customer(
+            name=derived_name,
+            email=email,
+            restaurant_id=restaurant_id,
+            is_active=True,
+        )
         db.add(customer)
         await db.commit()
         await db.refresh(customer)
@@ -54,14 +62,22 @@ class CustomerAuthService:
     async def request_email_otp(
         db: AsyncSession,
         email: str,
+        restaurant_id: str,
         ip_address: Optional[str] = None,
     ) -> tuple[Customer, str, int]:
-        customer = await CustomerAuthService._get_or_create_customer_by_email(db, email)
+        restaurant = await RestaurantService.get_restaurant_by_id(db, restaurant_id)
+        if not restaurant:
+            raise CustomerAuthError("Invalid restaurant_id", code="INVALID_RESTAURANT", status_code=404)
 
-        # Rate limit: avoid spamming OTP requests
+        customer = await CustomerAuthService._get_or_create_customer_by_email(db, email, restaurant_id)
+
+        # Rate limit: avoid spamming OTP requests (per restaurant + email)
         last = await db.execute(
             select(CustomerEmailOTP)
-            .where(CustomerEmailOTP.email == email)
+            .where(
+                CustomerEmailOTP.email == email,
+                CustomerEmailOTP.restaurant_id == restaurant_id,
+            )
             .order_by(desc(CustomerEmailOTP.created_at))
             .limit(1)
         )
@@ -81,6 +97,7 @@ class CustomerAuthService:
         record = CustomerEmailOTP(
             email=email,
             customer_id=customer.id,
+            restaurant_id=restaurant_id,
             otp_hash=otp_hash,
             attempts=0,
             ip_address=ip_address,
@@ -93,12 +110,15 @@ class CustomerAuthService:
         return customer, otp, expires_in
 
     @staticmethod
-    async def verify_email_otp(db: AsyncSession, email: str, otp: str) -> Customer:
+    async def verify_email_otp(
+        db: AsyncSession, email: str, restaurant_id: str, otp: str
+    ) -> Customer:
         now = datetime.utcnow()
         result = await db.execute(
             select(CustomerEmailOTP)
             .where(
                 CustomerEmailOTP.email == email,
+                CustomerEmailOTP.restaurant_id == restaurant_id,
                 CustomerEmailOTP.consumed_at.is_(None),
                 CustomerEmailOTP.expires_at >= now,
             )
@@ -123,12 +143,17 @@ class CustomerAuthService:
         customer = await CustomerService.get_customer_by_id(db, record.customer_id)
         if not customer or not customer.is_active:
             raise CustomerAuthError("Customer not found or inactive", code="CUSTOMER_NOT_FOUND", status_code=401)
+        if customer.restaurant_id and customer.restaurant_id != restaurant_id:
+            raise CustomerAuthError("Restaurant mismatch", code="RESTAURANT_MISMATCH", status_code=401)
         return customer
 
     @staticmethod
     def issue_tokens(customer: Customer) -> dict:
-        access_token = create_access_token(data={"sub": customer.id, "role": "customer"})
-        refresh_token = create_refresh_token(data={"sub": customer.id, "role": "customer"})
+        token_data = {"sub": customer.id, "role": "customer"}
+        if customer.restaurant_id:
+            token_data["restaurant_id"] = customer.restaurant_id
+        access_token = create_access_token(data=token_data)
+        refresh_token = create_refresh_token(data=token_data)
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
@@ -155,7 +180,10 @@ class CustomerAuthService:
         if not customer or not customer.is_active:
             raise CustomerAuthError("Customer not found or inactive", code="CUSTOMER_NOT_FOUND", status_code=401)
 
-        access_token = create_access_token(data={"sub": customer.id, "role": "customer"})
+        token_data = {"sub": customer.id, "role": "customer"}
+        if customer.restaurant_id:
+            token_data["restaurant_id"] = customer.restaurant_id
+        access_token = create_access_token(data=token_data)
         return {
             "access_token": access_token,
             "token_type": "bearer",

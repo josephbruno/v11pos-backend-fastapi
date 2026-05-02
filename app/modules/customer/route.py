@@ -42,10 +42,28 @@ async def create_customer(
     - **notes**: Additional notes
     """
     try:
+        if customer_data.email:
+            dup = await CustomerService.get_customer_by_email(
+                db, str(customer_data.email).lower(), customer_data.restaurant_id
+            )
+            if dup:
+                return error_response(
+                    message="Email already exists for this restaurant",
+                    error_code="DUPLICATE_EMAIL",
+                    error_details="Use a different email or update the existing customer",
+                    status_code=status.HTTP_409_CONFLICT,
+                )
         customer = await CustomerService.create_customer(db, customer_data)
         return success_response(
             data=CustomerResponse.model_validate(customer),
             message="Customer created successfully"
+        )
+    except ValueError as e:
+        return error_response(
+            message=str(e),
+            error_code="DUPLICATE_EMAIL",
+            error_details=str(e),
+            status_code=status.HTTP_409_CONFLICT,
         )
     except Exception as e:
         return error_response(
@@ -81,6 +99,12 @@ async def get_customers(
     limit: int = Query(100, ge=1, le=100),
     search: Optional[str] = Query(None, description="Search by name, email, or phone"),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
+    restaurant_id: Optional[str] = Query(
+        None,
+        min_length=36,
+        max_length=36,
+        description="Filter by restaurant (defaults to current user's restaurant when set)",
+    ),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -92,12 +116,16 @@ async def get_customers(
     - **search**: Search term for name, email, or phone
     - **is_active**: Filter by active status
     """
+    effective_restaurant_id = restaurant_id or (
+        str(current_user.restaurant_id) if getattr(current_user, "restaurant_id", None) else None
+    )
     customers, total = await CustomerService.get_customers(
         db,
         skip=skip,
         limit=limit,
         search=search,
-        is_active=is_active
+        is_active=is_active,
+        restaurant_id=effective_restaurant_id,
     )
     
     return success_response(
@@ -119,14 +147,22 @@ async def update_customer(
     current_user: User = Depends(get_current_user)
 ):
     """Update customer information"""
-    customer = await CustomerService.update_customer(db, customer_id, customer_data)
-    
+    try:
+        customer = await CustomerService.update_customer(db, customer_id, customer_data)
+    except ValueError as e:
+        return error_response(
+            message=str(e),
+            error_code="DUPLICATE_EMAIL",
+            error_details=str(e),
+            status_code=status.HTTP_409_CONFLICT,
+        )
+
     if not customer:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Customer not found"
         )
-    
+
     return success_response(
         data=CustomerResponse.model_validate(customer),
         message="Customer updated successfully"

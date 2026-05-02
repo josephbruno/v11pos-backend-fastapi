@@ -181,4 +181,11 @@ async def get_current_customer(
     if not customer or not customer.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Customer not found or inactive")
 
+    token_rid = payload.get("restaurant_id")
+    if token_rid and customer.restaurant_id and token_rid != customer.restaurant_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token restaurant does not match customer",
+        )
+
     return customer

@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta
-from typing import Optional
 import uuid
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String
+from typing import Optional
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -17,6 +17,12 @@ class CustomerEmailOTP(Base):
         String(36),
         ForeignKey("customers.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
+    )
+    restaurant_id: Mapped[Optional[str]] = mapped_column(
+        String(36),
+        ForeignKey("restaurants.id", ondelete="CASCADE"),
+        nullable=True,
         index=True,
     )
 

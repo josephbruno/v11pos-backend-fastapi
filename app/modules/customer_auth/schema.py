@@ -8,10 +8,12 @@ from app.modules.customer.schema import CustomerResponse
 
 class CustomerEmailOTPRequest(BaseModel):
     email: EmailStr
+    restaurant_id: str = Field(..., min_length=36, max_length=36)
 
 
 class CustomerEmailOTPVerify(BaseModel):
     email: EmailStr
+    restaurant_id: str = Field(..., min_length=36, max_length=36)
     otp: str = Field(..., min_length=4, max_length=12)
 
 

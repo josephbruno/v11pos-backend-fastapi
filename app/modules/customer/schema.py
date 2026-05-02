@@ -45,6 +45,7 @@ class CustomerAddressResponse(CustomerAddressBase):
 
 class CustomerBase(BaseModel):
     """Base customer schema"""
+    restaurant_id: Optional[str] = Field(None, description="Restaurant this customer belongs to")
     name: str = Field(..., min_length=1, max_length=255)
     email: Optional[EmailStr] = None
     phone: Optional[str] = Field(None, max_length=50)
@@ -60,6 +61,8 @@ class CustomerBase(BaseModel):
 
 class CustomerCreate(CustomerBase):
     """Schema for creating a customer"""
+
+    restaurant_id: str = Field(..., min_length=36, max_length=36)
     is_active: bool = True
 
 

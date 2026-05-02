@@ -30,7 +30,10 @@ async def _request_customer_otp(
     db: AsyncSession,
 ):
     customer, otp, expires_in = await CustomerAuthService.request_email_otp(
-        db, str(payload.email).lower(), ip_address=_client_ip(request)
+        db,
+        str(payload.email).lower(),
+        payload.restaurant_id,
+        ip_address=_client_ip(request),
     )
     email_sent = await send_customer_email_otp(str(payload.email).lower(), otp)
     _log.info(
@@ -51,7 +54,12 @@ async def _request_customer_otp(
 
 
 async def _verify_customer_otp(payload: CustomerEmailOTPVerify, db: AsyncSession):
-    customer = await CustomerAuthService.verify_email_otp(db, str(payload.email).lower(), payload.otp)
+    customer = await CustomerAuthService.verify_email_otp(
+        db,
+        str(payload.email).lower(),
+        payload.restaurant_id,
+        payload.otp,
+    )
     customer_full = await CustomerService.get_customer_by_id(db, customer.id)
     customer_out = customer_full or customer
     tokens = CustomerAuthService.issue_tokens(customer_out)

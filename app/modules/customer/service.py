@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from typing import Optional, List
 from app.modules.customer.model import Customer, CustomerAddress
@@ -27,6 +28,7 @@ class CustomerService:
             Created customer
         """
         db_customer = Customer(
+            restaurant_id=customer_data.restaurant_id,
             name=customer_data.name,
             email=customer_data.email,
             phone=customer_data.phone,
@@ -42,7 +44,11 @@ class CustomerService:
         )
         
         db.add(db_customer)
-        await db.commit()
+        try:
+            await db.commit()
+        except IntegrityError:
+            await db.rollback()
+            raise ValueError("Email already exists for this restaurant") from None
         await db.refresh(db_customer)
 
         # Backward-compatible: if legacy address fields were provided, also create a default address record
@@ -72,21 +78,19 @@ class CustomerService:
         return result.scalar_one_or_none()
     
     @staticmethod
-    async def get_customer_by_email(db: AsyncSession, email: str) -> Optional[Customer]:
+    async def get_customer_by_email(
+        db: AsyncSession, email: str, restaurant_id: str
+    ) -> Optional[Customer]:
         """
-        Get customer by email
-        
-        Args:
-            db: Database session
-            email: Customer email
-            
-        Returns:
-            Customer if found, None otherwise
+        Get customer by email within a restaurant (email is unique per restaurant).
         """
         result = await db.execute(
             select(Customer)
             .options(selectinload(Customer.addresses))
-            .where(Customer.email == email)
+            .where(
+                Customer.email == email,
+                Customer.restaurant_id == restaurant_id,
+            )
         )
         return result.scalar_one_or_none()
     
@@ -115,7 +119,8 @@ class CustomerService:
         skip: int = 0,
         limit: int = 100,
         search: Optional[str] = None,
-        is_active: Optional[bool] = None
+        is_active: Optional[bool] = None,
+        restaurant_id: Optional[str] = None,
     ) -> tuple[List[Customer], int]:
         """
         Get paginated list of customers with optional filtering
@@ -131,7 +136,10 @@ class CustomerService:
             Tuple of (list of customers, total count)
         """
         query = select(Customer).options(selectinload(Customer.addresses))
-        
+
+        if restaurant_id is not None:
+            query = query.where(Customer.restaurant_id == restaurant_id)
+
         # Apply filters
         if is_active is not None:
             query = query.where(Customer.is_active == is_active)
@@ -306,10 +314,28 @@ class CustomerService:
         
         # Update only provided fields
         update_data = customer_data.model_dump(exclude_unset=True)
+        new_email = update_data.get("email", customer.email)
+        rid = customer.restaurant_id
+        if new_email and rid and "email" in update_data:
+            lem = str(new_email).lower()
+            dup = await db.execute(
+                select(Customer.id).where(
+                    Customer.restaurant_id == rid,
+                    func.lower(Customer.email) == lem,
+                    Customer.id != customer_id,
+                )
+            )
+            if dup.scalar_one_or_none():
+                raise ValueError("Email already exists for this restaurant")
+
         for field, value in update_data.items():
             setattr(customer, field, value)
-        
-        await db.commit()
+
+        try:
+            await db.commit()
+        except IntegrityError:
+            await db.rollback()
+            raise ValueError("Email already exists for this restaurant") from None
         # Reload with addresses eager-loaded (avoid async lazy-load issues in response serialization)
         updated = await CustomerService.get_customer_by_id(db, customer_id)
         return updated

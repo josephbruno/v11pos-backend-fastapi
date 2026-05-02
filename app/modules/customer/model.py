@@ -1,4 +1,4 @@
-from sqlalchemy import String, Boolean, DateTime, Numeric, ForeignKey
+from sqlalchemy import String, Boolean, DateTime, Numeric, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
 from typing import Optional
@@ -7,11 +7,20 @@ from app.core.database import Base
 
 
 class Customer(Base):
-    """Customer database model - Common customer not tied to specific restaurant"""
-    
+    """Customer record scoped to a restaurant (email unique per restaurant)."""
+
     __tablename__ = "customers"
-    
+    __table_args__ = (
+        UniqueConstraint("restaurant_id", "email", name="uq_customers_restaurant_email"),
+    )
+
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    restaurant_id: Mapped[Optional[str]] = mapped_column(
+        String(36),
+        ForeignKey("restaurants.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
     phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, index=True)
