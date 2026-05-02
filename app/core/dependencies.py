@@ -1,11 +1,18 @@
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Optional
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.database import get_db
 from app.core.security import decode_token
 from app.modules.user.model import User
-from sqlalchemy import select
-from typing import Optional
+
+if TYPE_CHECKING:
+    from app.modules.cart.model import Cart
+    from app.modules.customer.model import Customer
 
 
 # HTTP Bearer token scheme
@@ -189,3 +196,134 @@ async def get_current_customer(
         )
 
     return customer
+
+
+@dataclass
+class CartAuthContext:
+    """Cart routes accept either staff (User) or customer JWT."""
+
+    staff_user: Optional[User] = None
+    customer: Optional["Customer"] = None
+
+    def response_timezone(self) -> Optional[str]:
+        if self.staff_user is not None:
+            return getattr(self.staff_user, "timezone", None)
+        return None
+
+    def enforce_customer_path_scope(self, restaurant_id: str, customer_id: str) -> None:
+        """When the caller is a customer, URL/body ids must match their account."""
+        if self.customer is None:
+            return
+        if self.customer.id != customer_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot access another customer's cart",
+            )
+        if not self.customer.restaurant_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Customer must belong to a restaurant to use the cart",
+            )
+        if self.customer.restaurant_id != restaurant_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Restaurant does not match your account",
+            )
+
+    def enforce_customer_cart_row(self, cart: "Cart") -> None:
+        """When the caller is a customer, cart rows must belong to them."""
+        if self.customer is None:
+            return
+        if cart.customer_id != self.customer.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Cannot access this cart",
+            )
+        if not self.customer.restaurant_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Customer must belong to a restaurant to use the cart",
+            )
+        if self.customer.restaurant_id != cart.restaurant_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Restaurant does not match your account",
+            )
+
+
+async def get_cart_auth_context(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db),
+) -> CartAuthContext:
+    """
+    Accept staff **User** JWT (no `role`, or non-customer) or **customer** JWT (`role: customer`).
+    Used by `/carts` so the same endpoints work for POS staff and logged-in customers.
+    """
+    token = credentials.credentials
+    payload = decode_token(token)
+
+    if payload is None or payload.get("type") != "access":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if payload.get("role") == "customer":
+        from app.modules.customer.model import Customer
+
+        customer_id: str = payload.get("sub")
+        if not customer_id:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
+
+        result = await db.execute(select(Customer).where(Customer.id == customer_id))
+        customer = result.scalar_one_or_none()
+        if not customer or not customer.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Customer not found or inactive",
+            )
+
+        token_rid = payload.get("restaurant_id")
+        if token_rid and customer.restaurant_id and token_rid != customer.restaurant_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token restaurant does not match customer",
+            )
+
+        return CartAuthContext(customer=customer)
+
+    user_id: str = payload.get("sub")
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    from app.modules.restaurant.model import Restaurant
+
+    result = await db.execute(
+        select(User, Restaurant.timezone, Restaurant.date_format, Restaurant.time_format, Restaurant.country)
+        .join(Restaurant, User.restaurant_id == Restaurant.id, isouter=True)
+        .where(User.id == user_id)
+    )
+    row = result.one_or_none()
+
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user = row[0]
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive user")
+
+    user.timezone = row[1] or "Asia/Kolkata"
+    user.date_format = row[2] or "DD/MM/YYYY"
+    user.time_format = row[3] or "24h"
+    user.country = row[4] or "India"
+
+    return CartAuthContext(staff_user=user)

@@ -164,7 +164,65 @@ class OrderService:
             select(Order).where(Order.order_number == order_number)
         )
         return result.scalar_one_or_none()
-    
+
+    @staticmethod
+    async def get_order_for_customer(
+        db: AsyncSession,
+        order_id: str,
+        customer_id: str,
+        restaurant_id: Optional[str],
+    ) -> Optional[Order]:
+        """Single order only if it belongs to the customer at the given restaurant."""
+        if not restaurant_id:
+            return None
+        q = (
+            select(Order)
+            .options(selectinload(Order.items))
+            .where(
+                Order.id == order_id,
+                Order.restaurant_id == restaurant_id,
+                Order.customer_id == customer_id,
+            )
+        )
+        result = await db.execute(q)
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_orders_for_customer(
+        db: AsyncSession,
+        *,
+        customer_id: str,
+        restaurant_id: Optional[str],
+        skip: int = 0,
+        limit: int = 50,
+        status: Optional[OrderStatus] = None,
+    ) -> tuple[List[Order], int]:
+        """Paginated orders for a registered customer (scoped by restaurant)."""
+        if not restaurant_id:
+            return [], 0
+
+        filters = [
+            Order.restaurant_id == restaurant_id,
+            Order.customer_id == customer_id,
+        ]
+        if status is not None:
+            filters.append(Order.status == status.value)
+
+        base = select(Order).where(and_(*filters))
+        count_result = await db.execute(select(func.count()).select_from(base.subquery()))
+        total = count_result.scalar_one()
+
+        list_q = (
+            select(Order)
+            .options(selectinload(Order.items))
+            .where(and_(*filters))
+            .order_by(desc(Order.created_at))
+            .offset(skip)
+            .limit(limit)
+        )
+        result = await db.execute(list_q)
+        return list(result.scalars().all()), total
+
     @staticmethod
     async def get_orders(
         db: AsyncSession,

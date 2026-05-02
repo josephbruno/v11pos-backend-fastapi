@@ -1,12 +1,12 @@
 """
-Cart API routes (staff-authenticated, customer-scoped).
+Cart API routes: staff or customer JWT (`get_cart_auth_context`).
 """
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_active_user
+from app.core.dependencies import CartAuthContext, get_cart_auth_context
 from app.core.response import error_response, success_response
 from app.modules.cart.schema import (
     CartItemAddRequest,
@@ -15,7 +15,6 @@ from app.modules.cart.schema import (
     CartResponse,
 )
 from app.modules.cart.service import CartService, CartValidationError
-from app.modules.user.model import User
 
 
 router = APIRouter(prefix="/carts", tags=["Cart"])
@@ -68,16 +67,17 @@ async def _build_cart_response(db: AsyncSession, cart) -> CartResponse:
 async def get_active_cart(
     restaurant_id: str,
     customer_id: str,
-    current_user: User = Depends(get_current_active_user),
+    auth: CartAuthContext = Depends(get_cart_auth_context),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get active cart for a customer (creates one if missing)."""
+    """Get active cart for a customer (creates one if missing). Staff or customer Bearer token."""
+    auth.enforce_customer_path_scope(restaurant_id, customer_id)
     try:
         cart = await CartService.get_or_create_active_cart(db, restaurant_id, customer_id)
         return success_response(
             message="Cart retrieved successfully",
             data=(await _build_cart_response(db, cart)).model_dump(),
-            timezone=getattr(current_user, "timezone", None),
+            timezone=auth.response_timezone(),
         )
     except CartValidationError as e:
         return error_response(
@@ -98,10 +98,11 @@ async def get_active_cart(
 @router.post("/items", status_code=status.HTTP_201_CREATED)
 async def add_cart_item(
     payload: CartItemAddRequest,
-    current_user: User = Depends(get_current_active_user),
+    auth: CartAuthContext = Depends(get_cart_auth_context),
     db: AsyncSession = Depends(get_db),
 ):
-    """Add an item to cart (product/combo with modifier options)."""
+    """Add an item to cart (product/combo with modifier options). Staff or customer Bearer token."""
+    auth.enforce_customer_path_scope(payload.restaurant_id, payload.customer_id)
     try:
         await CartService.add_item(
             db=db,
@@ -118,7 +119,7 @@ async def add_cart_item(
         return success_response(
             message="Item added to cart successfully",
             data=(await _build_cart_response(db, cart)).model_dump(),
-            timezone=getattr(current_user, "timezone", None),
+            timezone=auth.response_timezone(),
             status_code=status.HTTP_201_CREATED,
         )
     except CartValidationError as e:
@@ -141,11 +142,31 @@ async def add_cart_item(
 async def update_cart_item(
     item_id: str,
     payload: CartItemUpdateRequest,
-    current_user: User = Depends(get_current_active_user),
+    auth: CartAuthContext = Depends(get_cart_auth_context),
     db: AsyncSession = Depends(get_db),
 ):
-    """Update cart item quantity."""
+    """Update cart item quantity. Staff or customer Bearer token (customer: own cart only)."""
     try:
+        from app.modules.cart.model import Cart, CartItem
+
+        existing = await db.get(CartItem, item_id)
+        if not existing:
+            return error_response(
+                message="Cart item not found",
+                error_code="NOT_FOUND",
+                error_details=f"Cart item with ID {item_id} not found",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+        cart = await db.get(Cart, existing.cart_id)
+        if not cart:
+            return error_response(
+                message="Cart not found",
+                error_code="NOT_FOUND",
+                error_details="Active cart not found for this item",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+        auth.enforce_customer_cart_row(cart)
+
         item = await CartService.update_item_quantity(db, item_id, payload.quantity)
         if not item:
             return error_response(
@@ -154,8 +175,6 @@ async def update_cart_item(
                 error_details=f"Cart item with ID {item_id} not found",
                 status_code=status.HTTP_404_NOT_FOUND,
             )
-        from app.modules.cart.model import Cart
-
         cart = await db.get(Cart, item.cart_id)
         if not cart:
             return error_response(
@@ -167,8 +186,10 @@ async def update_cart_item(
         return success_response(
             message="Cart item updated successfully",
             data=(await _build_cart_response(db, cart)).model_dump(),
-            timezone=getattr(current_user, "timezone", None),
+            timezone=auth.response_timezone(),
         )
+    except HTTPException:
+        raise
     except Exception as e:
         return error_response(
             message="Failed to update cart item",
@@ -181,13 +202,12 @@ async def update_cart_item(
 async def remove_cart_item(
     item_id: str,
     quantity: int | None = Query(None, ge=1, description="If provided, decrement by quantity"),
-    current_user: User = Depends(get_current_active_user),
+    auth: CartAuthContext = Depends(get_cart_auth_context),
     db: AsyncSession = Depends(get_db),
 ):
-    """Remove an item from cart (or decrement quantity)."""
+    """Remove an item from cart (or decrement quantity). Staff or customer Bearer token (customer: own cart only)."""
     try:
-        # Load item first so we can return updated cart
-        from app.modules.cart.model import CartItem  # local import to avoid circulars
+        from app.modules.cart.model import Cart, CartItem
 
         item = await db.get(CartItem, item_id)
         if not item:
@@ -197,6 +217,10 @@ async def remove_cart_item(
                 error_details=f"Cart item with ID {item_id} not found",
                 status_code=status.HTTP_404_NOT_FOUND,
             )
+        cart_for_auth = await db.get(Cart, item.cart_id)
+        if cart_for_auth:
+            auth.enforce_customer_cart_row(cart_for_auth)
+
         ok = await CartService.remove_item(db, item_id, quantity=quantity)
         if not ok:
             return error_response(
@@ -206,19 +230,20 @@ async def remove_cart_item(
                 status_code=status.HTTP_404_NOT_FOUND,
             )
 
-        from app.modules.cart.model import Cart
         cart = await db.get(Cart, item.cart_id)
         if not cart:
             return success_response(
                 message="Cart item removed successfully",
                 data=None,
-                timezone=getattr(current_user, "timezone", None),
+                timezone=auth.response_timezone(),
             )
         return success_response(
             message="Cart item removed successfully",
             data=(await _build_cart_response(db, cart)).model_dump(),
-            timezone=getattr(current_user, "timezone", None),
+            timezone=auth.response_timezone(),
         )
+    except HTTPException:
+        raise
     except Exception as e:
         return error_response(
             message="Failed to remove cart item",
@@ -231,10 +256,11 @@ async def remove_cart_item(
 async def clear_cart(
     restaurant_id: str,
     customer_id: str,
-    current_user: User = Depends(get_current_active_user),
+    auth: CartAuthContext = Depends(get_cart_auth_context),
     db: AsyncSession = Depends(get_db),
 ):
-    """Clear (delete) the active cart for the customer."""
+    """Clear (delete) the active cart for the customer. Staff or customer Bearer token."""
+    auth.enforce_customer_path_scope(restaurant_id, customer_id)
     try:
         ok = await CartService.clear_cart(db, restaurant_id, customer_id)
         if not ok:
@@ -247,7 +273,7 @@ async def clear_cart(
         return success_response(
             message="Cart cleared successfully",
             data={"restaurant_id": restaurant_id, "customer_id": customer_id},
-            timezone=getattr(current_user, "timezone", None),
+            timezone=auth.response_timezone(),
         )
     except Exception as e:
         return error_response(

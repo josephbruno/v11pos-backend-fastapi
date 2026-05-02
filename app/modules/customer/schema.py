@@ -66,6 +66,24 @@ class CustomerCreate(CustomerBase):
     is_active: bool = True
 
 
+class CustomerSelfProfileUpdate(BaseModel):
+    """
+    Fields a logged-in customer may update via customer-auth.
+    Email is omitted (identity for OTP login).
+    """
+
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    phone: Optional[str] = Field(None, max_length=50)
+    address: Optional[str] = Field(None, max_length=500)
+    city: Optional[str] = Field(None, max_length=100)
+    state: Optional[str] = Field(None, max_length=100)
+    postal_code: Optional[str] = Field(None, max_length=20)
+    country: Optional[str] = Field(None, max_length=100)
+    latitude: Optional[float] = Field(None, ge=-90, le=90)
+    longitude: Optional[float] = Field(None, ge=-180, le=180)
+    notes: Optional[str] = Field(None, max_length=1000)
+
+
 class CustomerUpdate(BaseModel):
     """Schema for updating a customer"""
     name: Optional[str] = Field(None, min_length=1, max_length=255)
