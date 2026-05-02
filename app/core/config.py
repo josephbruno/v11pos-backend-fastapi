@@ -1,3 +1,4 @@
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Literal
 
@@ -31,14 +32,26 @@ class Settings(BaseSettings):
     # Optional public endpoint for URL generation (defaults to MINIO_ENDPOINT)
     MINIO_PUBLIC_ENDPOINT: str | None = None
 
-    # SMTP (optional). When SMTP_HOST is set, customer OTP emails are sent via SMTP.
-    SMTP_HOST: str | None = None
+    # SMTP (optional). When host is set (SMTP_HOST or SMTP_SERVER), customer OTP emails are sent.
+    SMTP_HOST: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SMTP_HOST", "SMTP_SERVER"),
+    )
     SMTP_PORT: int = 587
-    SMTP_USER: str | None = None
+    SMTP_USER: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SMTP_USER", "SMTP_USERNAME"),
+    )
     SMTP_PASSWORD: str | None = None
-    SMTP_FROM_EMAIL: str | None = None
+    SMTP_FROM_EMAIL: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SMTP_FROM_EMAIL", "SENDER_EMAIL"),
+    )
+    SENDER_NAME: str | None = None
     SMTP_USE_TLS: bool = True
     SMTP_USE_SSL: bool = False
+    # When false, customer OTP emails are never sent (OTP still created; use development_otp in dev).
+    EMAIL_ENABLED: bool = False
 
     model_config = SettingsConfigDict(
         env_file=".env",

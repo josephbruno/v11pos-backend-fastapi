@@ -5,6 +5,7 @@ import smtplib
 import ssl
 from datetime import datetime
 from email.message import EmailMessage
+from email.utils import formataddr
 from typing import Optional
 
 from sqlalchemy import desc, select
@@ -163,13 +164,18 @@ class CustomerAuthService:
 
 def _send_plain_email_sync(to_email: str, subject: str, body: str) -> None:
     """Blocking SMTP send (run via asyncio.to_thread)."""
-    from_addr = settings.SMTP_FROM_EMAIL or settings.SMTP_USER
-    if not from_addr:
-        raise ValueError("Set SMTP_FROM_EMAIL or SMTP_USER to send email")
+    from_email = settings.SMTP_FROM_EMAIL or settings.SMTP_USER
+    if not from_email:
+        raise ValueError("Set SENDER_EMAIL / SMTP_FROM_EMAIL or SMTP_USER / SMTP_USERNAME to send email")
+
+    if settings.SENDER_NAME:
+        from_header = formataddr((settings.SENDER_NAME, from_email))
+    else:
+        from_header = from_email
 
     msg = EmailMessage()
     msg["Subject"] = subject
-    msg["From"] = from_addr
+    msg["From"] = from_header
     msg["To"] = to_email
     msg.set_content(body)
 
@@ -197,11 +203,14 @@ async def send_customer_email_otp(to_email: str, otp: str) -> bool:
     """
     Send the OTP to the customer's email via SMTP when SMTP_HOST is configured.
 
-    Returns True if the message was accepted by SMTP, False if SMTP is not configured
-    or delivery failed (failure is logged; OTP already exists in the database).
+    Returns True if the message was accepted by SMTP, False if EMAIL_ENABLED is false,
+    SMTP is not configured, or delivery failed (failure is logged; OTP already exists in the database).
     """
+    if not settings.EMAIL_ENABLED:
+        logger.debug("EMAIL_ENABLED is false; skipping OTP email to %s", to_email)
+        return False
     if not settings.SMTP_HOST:
-        logger.debug("SMTP_HOST is not set; skipping OTP email to %s", to_email)
+        logger.debug("SMTP host is not set; skipping OTP email to %s", to_email)
         return False
 
     subject = "Your login verification code"
