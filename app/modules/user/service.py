@@ -168,6 +168,30 @@ class UserService:
         return user
     
     @staticmethod
+    async def update_user_password(
+        db: AsyncSession, user_id: str, new_password: str
+    ) -> Optional[User]:
+        """
+        Set a user's password to a new hashed value.
+
+        Args:
+            db: Database session
+            user_id: User ID
+            new_password: Plain text new password
+
+        Returns:
+            Updated user or None if not found
+        """
+        result = await db.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one_or_none()
+        if not user:
+            return None
+        user.hashed_password = get_password_hash(new_password)
+        await db.commit()
+        await db.refresh(user)
+        return user
+    
+    @staticmethod
     async def delete_user(db: AsyncSession, user_id: str) -> bool:
         """
         Delete user

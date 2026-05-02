@@ -50,3 +50,8 @@ class UserLogin(BaseModel):
     """Schema for user login"""
     email: EmailStr
     password: str
+
+
+class UserPasswordUpdate(BaseModel):
+    """Schema for admin reset of a user's password (superadmin or admin role only)"""
+    new_password: str = Field(..., min_length=6, max_length=100)

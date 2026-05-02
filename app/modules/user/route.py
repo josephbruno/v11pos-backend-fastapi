@@ -6,7 +6,12 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_active_user
 from app.core.response import success_response, error_response
 from app.modules.user.model import User
-from app.modules.user.schema import UserCreate, UserUpdate, UserResponse
+from app.modules.user.schema import (
+    UserCreate,
+    UserPasswordUpdate,
+    UserUpdate,
+    UserResponse,
+)
 from app.modules.user.service import UserService
 
 
@@ -146,6 +151,60 @@ async def get_current_user_info(
         message="User retrieved successfully",
         data=UserResponse.model_validate(current_user).model_dump()
     )
+
+
+@router.patch("/{user_id}/password", response_model=None)
+async def update_user_password(
+    user_id: str,
+    body: UserPasswordUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Set a user's password to **new_password** (no current password).
+
+    Allowed only for **superadmin** (`is_superadmin`) or users with **admin** role.
+    """
+    try:
+        is_privileged = current_user.is_superadmin or (
+            (current_user.role or "").lower() == "admin"
+        )
+        if not is_privileged:
+            return error_response(
+                message="Password update failed",
+                error_code="FORBIDDEN",
+                error_details="Only superadmin or admin may update user passwords",
+                status_code=403,
+            )
+
+        target_user = await UserService.get_user_by_id(db, user_id)
+        if not target_user:
+            return error_response(
+                message="User not found",
+                error_code="USER_NOT_FOUND",
+                error_details=f"User with ID {user_id} does not exist",
+                status_code=404,
+            )
+
+        user = await UserService.update_user_password(db, user_id, body.new_password)
+        if not user:
+            return error_response(
+                message="User not found",
+                error_code="USER_NOT_FOUND",
+                error_details=f"User with ID {user_id} does not exist",
+                status_code=404,
+            )
+
+        return success_response(
+            message="Password updated successfully",
+            data=UserResponse.model_validate(user).model_dump(),
+        )
+    except Exception as e:
+        return error_response(
+            message="Failed to update password",
+            error_code="INTERNAL_ERROR",
+            error_details=str(e),
+        )
 
 
 @router.get("/{user_id}", response_model=None)
