@@ -1,12 +1,16 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
 
 from app.core.config import settings
 from app.core.logging_config import configure_customer_auth_logging
 from app.core.database import init_db, close_db
-from app.core.response import success_response
+from app.core.response import (
+    success_response,
+    request_validation_exception_handler,
+)
 from app.modules.auth.route import router as auth_router
 from app.modules.user.route import router as user_router
 from app.modules.restaurant.route import router as restaurant_router
@@ -81,6 +85,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_exception_handler(RequestValidationError, request_validation_exception_handler)
 
 
 # Health check endpoint

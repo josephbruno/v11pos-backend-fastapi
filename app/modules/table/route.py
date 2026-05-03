@@ -1,6 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from pydantic import ValidationError
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, UploadFile
+from starlette.datastructures import UploadFile as StarletteUploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional, List
+from typing import Optional, List, Tuple, Any
+import json
+
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.core.response import success_response, error_response
@@ -13,20 +17,165 @@ from app.modules.table.schema import (
 from app.modules.table.model import TableStatus
 from app.modules.table.service import TableService
 from app.modules.user.model import User
+from app.services.storage_service import (
+    upload_file,
+    delete_file,
+    get_file_url,
+    get_object_name_from_url,
+)
 
 
 router = APIRouter(prefix="/tables", tags=["tables"])
 
 
-@router.post("", response_model=dict, status_code=status.HTTP_201_CREATED)
+def _multipart_request_body(schema: dict) -> dict:
+    return {
+        "requestBody": {
+            "content": {
+                "multipart/form-data": {
+                    "schema": schema,
+                }
+            }
+        }
+    }
+
+
+TABLE_CREATE_DOC = _multipart_request_body(
+    {
+        "type": "object",
+        "properties": {
+            "restaurant_id": {"type": "string"},
+            "table_number": {"type": "string"},
+            "table_name": {"type": "string"},
+            "capacity": {"type": "integer"},
+            "min_capacity": {"type": "integer"},
+            "floor": {"type": "string"},
+            "section": {"type": "string"},
+            "position_x": {"type": "integer"},
+            "position_y": {"type": "integer"},
+            "image": {"type": "string", "format": "binary"},
+            "qr_code": {"type": "string"},
+            "status": {"type": "string"},
+            "is_bookable": {"type": "boolean"},
+            "is_outdoor": {"type": "boolean"},
+            "is_accessible": {"type": "boolean"},
+            "has_power_outlet": {"type": "boolean"},
+            "minimum_spend": {"type": "integer"},
+            "description": {"type": "string"},
+            "notes": {"type": "string"},
+        },
+        "required": ["restaurant_id", "table_number", "capacity"],
+    }
+)
+
+TABLE_UPDATE_DOC = _multipart_request_body(
+    {
+        "type": "object",
+        "properties": {
+            "table_number": {"type": "string"},
+            "table_name": {"type": "string"},
+            "capacity": {"type": "integer"},
+            "min_capacity": {"type": "integer"},
+            "floor": {"type": "string"},
+            "section": {"type": "string"},
+            "position_x": {"type": "integer"},
+            "position_y": {"type": "integer"},
+            "image": {"type": "string", "format": "binary"},
+            "qr_code": {"type": "string"},
+            "status": {"type": "string"},
+            "is_active": {"type": "boolean"},
+            "is_bookable": {"type": "boolean"},
+            "is_outdoor": {"type": "boolean"},
+            "is_accessible": {"type": "boolean"},
+            "has_power_outlet": {"type": "boolean"},
+            "minimum_spend": {"type": "integer"},
+            "description": {"type": "string"},
+            "notes": {"type": "string"},
+        },
+    }
+)
+
+
+async def _parse_payload(
+    request: Request,
+    file_field: Optional[str],
+) -> Tuple[dict[str, Any], Optional[UploadFile]]:
+    content_type = request.headers.get("content-type", "")
+    if content_type.startswith("application/json"):
+        data = await request.json()
+        return data, None
+
+    form = await request.form()
+    data: dict[str, Any] = {}
+    upload: Optional[UploadFile] = None
+
+    for key, value in form.multi_items():
+        if isinstance(value, (UploadFile, StarletteUploadFile)) or (
+            hasattr(value, "filename") and hasattr(value, "file")
+        ):
+            if file_field and key == file_field:
+                upload = value
+            continue
+        if key in data:
+            existing = data[key]
+            if isinstance(existing, list):
+                existing.append(value)
+            else:
+                data[key] = [existing, value]
+        else:
+            data[key] = value
+
+    for key, value in list(data.items()):
+        if isinstance(value, str):
+            try:
+                data[key] = json.loads(value)
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+    data = {
+        k: v
+        for k, v in data.items()
+        if not (isinstance(v, str) and v.strip() == "")
+    }
+
+    return data, upload
+
+
+async def _upload_and_replace(
+    current_url: Optional[str],
+    new_file: Optional[UploadFile],
+    folder: str,
+) -> Optional[str]:
+    if not new_file:
+        return None
+
+    object_name = await upload_file(new_file, folder=folder)
+    new_url = get_file_url(object_name)
+
+    if current_url:
+        old_object_name = get_object_name_from_url(current_url)
+        if old_object_name:
+            try:
+                delete_file(old_object_name)
+            except Exception:
+                pass
+
+    return new_url
+
+
+@router.post("", response_model=dict, status_code=status.HTTP_201_CREATED, openapi_extra=TABLE_CREATE_DOC)
 async def create_table(
-    table_data: TableCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     """
-    Create a new table for a restaurant
-    
+    Create a new table for a restaurant.
+
+    Accepts **application/json** or **multipart/form-data**. For multipart, send
+    fields as form data and an optional **image** file; the stored image URL is
+    written to **image** on the table. With JSON, **image** may be a URL string.
+
     - **restaurant_id**: Restaurant ID (required)
     - **table_number**: Table number/identifier (required)
     - **table_name**: Optional name for the table
@@ -35,7 +184,7 @@ async def create_table(
     - **floor**: Floor location
     - **section**: Section within restaurant (e.g., "Patio", "Main Hall")
     - **position_x/position_y**: Coordinates for floor plan layout
-    - **image**: URL to table/section image
+    - **image**: File (multipart) or image URL string (JSON)
     - **qr_code**: URL to QR code for contactless ordering
     - **status**: Current status (available, occupied, reserved, cleaning, maintenance)
     - **is_bookable**: Can customers book this table online
@@ -47,28 +196,50 @@ async def create_table(
     - **notes**: Internal notes
     """
     try:
-        # Check if table number already exists for this restaurant
+        data, image_file = await _parse_payload(request, file_field="image")
+        if image_file:
+            image_url = await _upload_and_replace(None, image_file, folder="tables")
+            data["image"] = image_url
+
+        table_data = TableCreate(**data)
+
         existing_table = await TableService.get_table_by_number(
             db,
             table_data.restaurant_id,
-            table_data.table_number
+            table_data.table_number,
         )
-        
+
         if existing_table:
             return error_response(
                 message=f"Table number '{table_data.table_number}' already exists for this restaurant",
-                error="DUPLICATE_TABLE_NUMBER"
+                error_code="DUPLICATE_TABLE_NUMBER",
+                status_code=status.HTTP_409_CONFLICT,
             )
-        
+
         table = await TableService.create_table(db, table_data)
         return success_response(
             data=TableResponse.model_validate(table),
-            message="Table created successfully"
+            message="Table created successfully",
+        )
+    except ValueError as e:
+        return error_response(
+            message="Failed to create table",
+            error_code="INVALID_FILE",
+            error_details=str(e),
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    except ValidationError as e:
+        return error_response(
+            message="Validation failed",
+            error_code="VALIDATION_ERROR",
+            error_details=str(e),
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         )
     except Exception as e:
         return error_response(
             message="Failed to create table",
-            error=str(e)
+            error_code="INTERNAL_ERROR",
+            error_details=str(e),
         )
 
 
@@ -191,26 +362,66 @@ async def get_table_statistics(
     )
 
 
-@router.put("/{table_id}", response_model=dict)
+@router.put("/{table_id}", response_model=dict, openapi_extra=TABLE_UPDATE_DOC)
 async def update_table(
     table_id: str,
-    table_data: TableUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
-    """Update table information"""
-    table = await TableService.update_table(db, table_id, table_data)
-    
-    if not table:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Table not found"
+    """Update table information (JSON or multipart/form-data with optional image)."""
+    try:
+        existing = await TableService.get_table_by_id(db, table_id)
+        if not existing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Table not found",
+            )
+
+        data, image_file = await _parse_payload(request, file_field="image")
+        image_url = await _upload_and_replace(
+            existing.image,
+            image_file,
+            folder="tables",
         )
-    
-    return success_response(
-        data=TableResponse.model_validate(table),
-        message="Table updated successfully"
-    )
+        if image_url:
+            data["image"] = image_url
+
+        table_data = TableUpdate(**data)
+        table = await TableService.update_table(db, table_id, table_data)
+
+        if not table:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Table not found",
+            )
+
+        return success_response(
+            data=TableResponse.model_validate(table),
+            message="Table updated successfully",
+        )
+    except HTTPException:
+        raise
+    except ValueError as e:
+        return error_response(
+            message="Failed to update table",
+            error_code="INVALID_FILE",
+            error_details=str(e),
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    except ValidationError as e:
+        return error_response(
+            message="Validation failed",
+            error_code="VALIDATION_ERROR",
+            error_details=str(e),
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        )
+    except Exception as e:
+        return error_response(
+            message="Failed to update table",
+            error_code="INTERNAL_ERROR",
+            error_details=str(e),
+        )
 
 
 @router.patch("/{table_id}/status", response_model=dict)

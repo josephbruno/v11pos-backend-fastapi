@@ -1,8 +1,10 @@
 from typing import Any, Optional, Dict
 from pydantic import BaseModel
 from datetime import datetime
+from fastapi import Request
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from app.core.timezone import convert_datetime_fields, get_utc_now
 
 
@@ -198,3 +200,35 @@ def validation_error_response(
     }
     
     return JSONResponse(content=response_content, status_code=status_code)
+
+
+def sanitize_validation_errors_for_json(value: Any) -> Any:
+    """
+    Recursively replace binary values so validation error payloads are JSON-safe.
+
+    Pydantic v2 may include raw bytes in error details (for example multipart
+    bodies or file fields). FastAPI's default handler passes errors through
+    ``jsonable_encoder``, which decodes ``bytes`` as UTF-8 and can raise
+    ``UnicodeDecodeError`` on image or other binary content.
+    """
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        return f"<binary data: {len(value)} bytes>"
+    if isinstance(value, dict):
+        return {k: sanitize_validation_errors_for_json(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [sanitize_validation_errors_for_json(v) for v in value]
+    if isinstance(value, set):
+        return [sanitize_validation_errors_for_json(v) for v in value]
+    return value
+
+
+async def request_validation_exception_handler(
+    request: Request,
+    exc: RequestValidationError,
+) -> JSONResponse:
+    """422 handler that never fails when error ``input`` contains binary data."""
+    safe_detail = sanitize_validation_errors_for_json(exc.errors())
+    return JSONResponse(
+        status_code=422,
+        content={"detail": jsonable_encoder(safe_detail)},
+    )
