@@ -104,6 +104,26 @@ COMBO_CREATE_DOC = _multipart_request_body(
     }
 )
 
+COMBO_UPDATE_DOC = _multipart_request_body(
+    {
+        "type": "object",
+        "properties": {
+            "name": {"type": "string"},
+            "slug": {"type": "string"},
+            "description": {"type": "string"},
+            "price": {"type": "integer"},
+            "category_id": {"type": "string"},
+            "available": {"type": "boolean"},
+            "featured": {"type": "boolean"},
+            "tags": {"type": "array", "items": {"type": "string"}},
+            "valid_from": {"type": "string", "format": "date-time"},
+            "valid_until": {"type": "string", "format": "date-time"},
+            "max_quantity_per_order": {"type": "integer"},
+            "image": {"type": "string", "format": "binary"},
+        },
+    }
+)
+
 MODIFIER_CREATE_DOC = _multipart_request_body(
     {
         "type": "object",
@@ -991,6 +1011,62 @@ async def create_combo(
             message="Failed to create combo product",
             error_code="INTERNAL_ERROR",
             error_details=str(e)
+        )
+
+
+@router.put("/combos/{combo_id}", openapi_extra=COMBO_UPDATE_DOC)
+async def update_combo(
+    combo_id: str,
+    request: Request,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update an existing combo product"""
+    try:
+        existing = await ComboProductService.get_combo_by_id(db, combo_id)
+        if not existing:
+            return error_response(
+                message="Combo product not found",
+                error_code="NOT_FOUND",
+                error_details=f"Combo product with ID {combo_id} not found",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        data, image_file = await _parse_payload(request, file_field="image")
+        image_url = await _upload_and_replace(
+            existing.image,
+            image_file,
+            folder="combos",
+        )
+        if image_url:
+            data["image"] = image_url
+
+        combo_data = ComboProductUpdate(**data)
+        combo = await ComboProductService.update_combo(db, combo_id, combo_data)
+        if not combo:
+            return error_response(
+                message="Combo product not found",
+                error_code="NOT_FOUND",
+                error_details=f"Combo product with ID {combo_id} not found",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+
+        return success_response(
+            message="Combo product updated successfully",
+            data=ComboProductResponse.model_validate(combo).model_dump(),
+        )
+    except ValueError as e:
+        return error_response(
+            message="Failed to update combo product",
+            error_code="INVALID_FILE",
+            error_details=str(e),
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    except Exception as e:
+        return error_response(
+            message="Failed to update combo product",
+            error_code="INTERNAL_ERROR",
+            error_details=str(e),
         )
 
 

@@ -584,6 +584,24 @@ class ComboProductService:
         return result.scalar_one_or_none()
 
     @staticmethod
+    async def update_combo(
+        db: AsyncSession,
+        combo_id: str,
+        combo_data: ComboProductUpdate,
+    ) -> Optional[ComboProduct]:
+        """Update combo product (partial)."""
+        result = await db.execute(select(ComboProduct).where(ComboProduct.id == combo_id))
+        combo = result.scalar_one_or_none()
+        if not combo:
+            return None
+        update_data = combo_data.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(combo, field, value)
+        await db.commit()
+        await db.refresh(combo)
+        return combo
+
+    @staticmethod
     async def get_combos_by_ids(
         db: AsyncSession,
         restaurant_id: str,
