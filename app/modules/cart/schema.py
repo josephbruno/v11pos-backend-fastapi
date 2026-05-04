@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.modules.cart.model import CartItemType, CartStatus
+from app.modules.order.model import OrderType
 
 
 class CartItemAddRequest(BaseModel):
@@ -107,4 +108,32 @@ class CartResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class CartCheckoutRequest(BaseModel):
+    """
+    Order header fields for converting an active cart into an order.
+    `restaurant_id` and `customer_id` come from the URL; line items are taken from the cart.
+    """
+
+    order_type: OrderType
+    table_id: Optional[str] = None
+    guest_name: Optional[str] = Field(None, max_length=255)
+    guest_phone: Optional[str] = Field(None, max_length=50)
+    guest_email: Optional[str] = Field(None, max_length=255)
+    delivery_address: Optional[str] = Field(None, max_length=500)
+    delivery_latitude: Optional[float] = Field(None, ge=-90, le=90)
+    delivery_longitude: Optional[float] = Field(None, ge=-180, le=180)
+    delivery_instructions: Optional[str] = None
+    scheduled_for: Optional[datetime] = None
+    guest_count: Optional[int] = Field(None, ge=1)
+    special_instructions: Optional[str] = None
+    kitchen_notes: Optional[str] = None
+    staff_notes: Optional[str] = None
+    discount_code: Optional[str] = Field(None, max_length=50)
+    discount_type: Optional[str] = Field(None, max_length=20)
+    source: Optional[str] = Field(None, max_length=50)
+    source_details: Optional[Dict[str, Any]] = None
+    is_priority: bool = False
+    requires_cutlery: bool = True
 

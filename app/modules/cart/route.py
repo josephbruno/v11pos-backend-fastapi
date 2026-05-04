@@ -9,6 +9,7 @@ from app.core.database import get_db
 from app.core.dependencies import CartAuthContext, get_cart_auth_context
 from app.core.response import error_response, success_response
 from app.modules.cart.schema import (
+    CartCheckoutRequest,
     CartComboProductSummary,
     CartItemAddRequest,
     CartItemResponse,
@@ -17,6 +18,8 @@ from app.modules.cart.schema import (
     CartResponse,
 )
 from app.modules.cart.service import CartService, CartValidationError
+from app.modules.order.schema import OrderItemResponse, OrderResponse
+from app.modules.order.service import OrderService
 
 
 router = APIRouter(prefix="/carts", tags=["Cart"])
@@ -104,6 +107,58 @@ async def _build_cart_response(db: AsyncSession, cart) -> CartResponse:
         created_at=cart.created_at,
         updated_at=cart.updated_at,
     )
+
+
+@router.post(
+    "/restaurant/{restaurant_id}/customer/{customer_id}/checkout",
+    status_code=status.HTTP_201_CREATED,
+)
+async def checkout_cart(
+    restaurant_id: str,
+    customer_id: str,
+    body: CartCheckoutRequest,
+    auth: CartAuthContext = Depends(get_cart_auth_context),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Create an order from the active cart line items, then mark the cart as ordered.
+
+    Same authentication as other cart routes: **staff** (User JWT) or **customer** JWT
+    (`role: customer`). Customers may only checkout their own `customer_id`.
+    `created_by` on the order is set when the caller is staff; omitted for customer checkout.
+    """
+    auth.enforce_customer_path_scope(restaurant_id, customer_id)
+    try:
+        order = await CartService.checkout_active_cart(
+            db,
+            restaurant_id,
+            customer_id,
+            body,
+            created_by=auth.staff_user.id if auth.staff_user else None,
+        )
+        items = await OrderService.get_order_items(db, order.id)
+        order_response = OrderResponse.model_validate(order)
+        order_response.items = [OrderItemResponse.model_validate(item) for item in items]
+        return success_response(
+            message="Order created from cart successfully",
+            data=order_response,
+            timezone=auth.response_timezone(),
+            status_code=status.HTTP_201_CREATED,
+        )
+    except CartValidationError as e:
+        return error_response(
+            message=str(e),
+            error_code="VALIDATION_ERROR",
+            error_details=str(e),
+            field=getattr(e, "field", None),
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    except Exception as e:
+        return error_response(
+            message="Failed to checkout cart",
+            error_code="INTERNAL_ERROR",
+            error_details=str(e),
+        )
 
 
 @router.get("/restaurant/{restaurant_id}/customer/{customer_id}")

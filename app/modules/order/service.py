@@ -47,7 +47,13 @@ class OrderService:
         }
     
     @staticmethod
-    async def create_order(db: AsyncSession, order_data: OrderCreate, created_by: Optional[str] = None) -> Order:
+    async def create_order(
+        db: AsyncSession,
+        order_data: OrderCreate,
+        created_by: Optional[str] = None,
+        *,
+        commit: bool = True,
+    ) -> Order:
         """
         Create a new order with items
         
@@ -55,6 +61,7 @@ class OrderService:
             db: Database session
             order_data: Order creation data
             created_by: User ID who created the order
+            commit: If False, only flush; caller must commit (e.g. cart checkout with cart row update).
             
         Returns:
             Created order with items
@@ -116,7 +123,9 @@ class OrderService:
                 printer_tag=item_data.printer_tag,
                 is_complimentary=item_data.is_complimentary,
                 notes=item_data.notes,
-                status="pending"
+                status="pending",
+                is_combo_item=item_data.is_combo_item,
+                combo_id=item_data.combo_id,
             )
             order_items.append(db_item)
             db.add(db_item)
@@ -127,9 +136,13 @@ class OrderService:
         db_order.tax_amount = totals["tax_amount"]
         db_order.total_amount = totals["total_amount"]
         
-        await db.commit()
+        if commit:
+            await db.commit()
+        else:
+            await db.flush()
+
         await db.refresh(db_order)
-        
+
         # Load items relationship
         result = await db.execute(
             select(Order)
@@ -373,7 +386,9 @@ class OrderService:
                 printer_tag=item_data.printer_tag,
                 is_complimentary=item_data.is_complimentary,
                 notes=item_data.notes,
-                status="pending"
+                status="pending",
+                is_combo_item=item_data.is_combo_item,
+                combo_id=item_data.combo_id,
             )
             db.add(db_item)
         

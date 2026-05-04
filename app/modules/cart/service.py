@@ -14,7 +14,9 @@ from app.modules.cart.model import (
     CartStatus,
 )
 from app.modules.customer.model import Customer
-from app.modules.product.model import Category, ComboProduct, ModifierOption, Product
+from app.modules.order.model import Order
+from app.modules.product.model import Category, ComboItem, ComboProduct, ModifierOption, Product
+from app.modules.cart.schema import CartCheckoutRequest
 
 
 class CartValidationError(ValueError):
@@ -289,4 +291,121 @@ class CartService:
                 category_names[cat.id] = cat.name
 
         return products, combos, category_names
+
+    @staticmethod
+    async def _first_combo_component_product_id(db: AsyncSession, combo_product_id: str) -> str:
+        pid = await db.scalar(
+            select(ComboItem.product_id)
+            .where(ComboItem.combo_id == combo_product_id)
+            .order_by(ComboItem.sort_order.asc(), ComboItem.id.asc())
+            .limit(1)
+        )
+        if not pid:
+            raise CartValidationError("Combo has no component products", field="combo_product_id")
+        return pid
+
+    @staticmethod
+    async def checkout_active_cart(
+        db: AsyncSession,
+        restaurant_id: str,
+        customer_id: str,
+        checkout: CartCheckoutRequest,
+        created_by: Optional[str] = None,
+    ) -> Order:
+        """
+        Create an order from the customer's active cart, then mark the cart ordered.
+        Uses one DB transaction (order insert + cart update).
+        """
+        from app.modules.order.schema import OrderCreate, OrderItemCreate
+        from app.modules.order.service import OrderService
+
+        cart = (
+            await db.execute(
+                select(Cart)
+                .where(
+                    Cart.restaurant_id == restaurant_id,
+                    Cart.customer_id == customer_id,
+                    Cart.status == CartStatus.ACTIVE,
+                    Cart.is_active == True,
+                )
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+        if not cart:
+            raise CartValidationError("No active cart", field="cart")
+
+        entries = await CartService.get_cart_items_with_modifier_options(db, cart.id)
+        if not entries:
+            raise CartValidationError("Cart is empty", field="items")
+
+        products_by_id, combos_by_id, _category_names = await CartService.load_catalog_maps_for_cart_entries(
+            db, entries
+        )
+
+        order_items: list[OrderItemCreate] = []
+        for entry in entries:
+            options = await CartService._load_modifier_options(db, restaurant_id, entry.modifier_option_ids)
+            modifiers_payload: dict = {
+                "options": [{"id": o.id, "name": o.name, "price": int(o.price or 0)} for o in options]
+            }
+
+            if entry.item.item_type == CartItemType.PRODUCT:
+                if not entry.item.product_id:
+                    raise CartValidationError("Cart line missing product_id", field="product_id")
+                product = products_by_id.get(entry.item.product_id)
+                if not product or not product.available:
+                    raise CartValidationError("A cart product is no longer available", field="product_id")
+                order_items.append(
+                    OrderItemCreate(
+                        product_id=product.id,
+                        product_name=product.name,
+                        product_image=product.image,
+                        quantity=int(entry.item.quantity or 0),
+                        unit_price=int(entry.item.unit_price or 0),
+                        modifiers=modifiers_payload,
+                        modifiers_price=int(entry.item.modifiers_price or 0),
+                        notes=entry.item.notes,
+                    )
+                )
+            elif entry.item.item_type == CartItemType.COMBO_PRODUCT:
+                if not entry.item.combo_product_id:
+                    raise CartValidationError("Cart line missing combo_product_id", field="combo_product_id")
+                combo = combos_by_id.get(entry.item.combo_product_id)
+                if not combo or not combo.available:
+                    raise CartValidationError("A cart combo is no longer available", field="combo_product_id")
+                anchor_pid = await CartService._first_combo_component_product_id(db, combo.id)
+                order_items.append(
+                    OrderItemCreate(
+                        product_id=anchor_pid,
+                        product_name=combo.name,
+                        product_image=combo.image,
+                        quantity=int(entry.item.quantity or 0),
+                        unit_price=int(entry.item.unit_price or 0),
+                        modifiers=modifiers_payload,
+                        modifiers_price=int(entry.item.modifiers_price or 0),
+                        notes=entry.item.notes,
+                        is_combo_item=True,
+                        combo_id=combo.id,
+                    )
+                )
+            else:
+                raise CartValidationError("Unsupported cart line type", field="item_type")
+
+        fields = checkout.model_dump()
+        if not fields.get("source"):
+            fields["source"] = "cart"
+        order_data = OrderCreate(
+            restaurant_id=restaurant_id,
+            customer_id=customer_id,
+            items=order_items,
+            **fields,
+        )
+
+        order = await OrderService.create_order(db, order_data, created_by=created_by, commit=False)
+        cart.status = CartStatus.ORDERED
+        cart.is_active = False
+        await db.commit()
+
+        reloaded = await OrderService.get_order_by_id(db, order.id, include_items=True)
+        return reloaded or order
 

@@ -25,7 +25,9 @@ class OrderItemBase(BaseModel):
 
 class OrderItemCreate(OrderItemBase):
     """Schema for creating an order item"""
-    pass
+
+    is_combo_item: bool = False
+    combo_id: Optional[str] = Field(None, max_length=36)
 
 
 class OrderItemUpdate(BaseModel):
