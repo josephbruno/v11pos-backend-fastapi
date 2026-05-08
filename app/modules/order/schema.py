@@ -69,6 +69,11 @@ class OrderBase(BaseModel):
     guest_phone: Optional[str] = Field(None, max_length=50)
     guest_email: Optional[str] = Field(None, max_length=255)
     delivery_address: Optional[str] = Field(None, max_length=500)
+    delivery_address_line2: Optional[str] = Field(None, max_length=255)
+    delivery_city: Optional[str] = Field(None, max_length=100)
+    delivery_state: Optional[str] = Field(None, max_length=100)
+    delivery_postal_code: Optional[str] = Field(None, max_length=20)
+    delivery_country: Optional[str] = Field(None, max_length=100)
     delivery_latitude: Optional[float] = Field(None, ge=-90, le=90)
     delivery_longitude: Optional[float] = Field(None, ge=-180, le=180)
     delivery_instructions: Optional[str] = None
@@ -99,6 +104,11 @@ class OrderUpdate(BaseModel):
     guest_phone: Optional[str] = Field(None, max_length=50)
     guest_email: Optional[str] = Field(None, max_length=255)
     delivery_address: Optional[str] = Field(None, max_length=500)
+    delivery_address_line2: Optional[str] = Field(None, max_length=255)
+    delivery_city: Optional[str] = Field(None, max_length=100)
+    delivery_state: Optional[str] = Field(None, max_length=100)
+    delivery_postal_code: Optional[str] = Field(None, max_length=20)
+    delivery_country: Optional[str] = Field(None, max_length=100)
     delivery_latitude: Optional[float] = Field(None, ge=-90, le=90)
     delivery_longitude: Optional[float] = Field(None, ge=-180, le=180)
     delivery_instructions: Optional[str] = None

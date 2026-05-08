@@ -78,6 +78,7 @@ from app.modules.data_copy.model import (
 from app.modules.homebanner.model import HomeBanner
 from app.modules.row_management.model import RowManagement
 from app.modules.cart.model import Cart, CartItem, CartItemModifierOption
+from app.modules.payment.model import OrderPayment
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

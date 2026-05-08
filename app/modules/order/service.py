@@ -81,6 +81,11 @@ class OrderService:
             guest_phone=order_data.guest_phone,
             guest_email=order_data.guest_email,
             delivery_address=order_data.delivery_address,
+            delivery_address_line2=order_data.delivery_address_line2,
+            delivery_city=order_data.delivery_city,
+            delivery_state=order_data.delivery_state,
+            delivery_postal_code=order_data.delivery_postal_code,
+            delivery_country=order_data.delivery_country,
             delivery_latitude=order_data.delivery_latitude,
             delivery_longitude=order_data.delivery_longitude,
             delivery_instructions=order_data.delivery_instructions,
@@ -95,7 +100,8 @@ class OrderService:
             source_details=order_data.source_details,
             is_priority=order_data.is_priority,
             requires_cutlery=order_data.requires_cutlery,
-            status=OrderStatus.PENDING
+            status=OrderStatus.PENDING,
+            payment_status=PaymentStatus.PENDING,
         )
         
         db.add(db_order)
@@ -135,7 +141,18 @@ class OrderService:
         db_order.subtotal = totals["subtotal"]
         db_order.tax_amount = totals["tax_amount"]
         db_order.total_amount = totals["total_amount"]
-        
+        db_order.due_amount = max(0, int(db_order.total_amount or 0))
+
+        from app.modules.payment.service import OrderPaymentService
+
+        await OrderPaymentService.create_pending_payment_for_order(
+            db,
+            order_id=db_order.id,
+            restaurant_id=order_data.restaurant_id,
+            amount=db_order.due_amount,
+            created_by=created_by,
+        )
+
         if commit:
             await db.commit()
         else:

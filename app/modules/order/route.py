@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
 from datetime import datetime
@@ -19,10 +19,36 @@ from app.modules.order.schema import (
 )
 from app.modules.order.model import OrderType, OrderStatus, PaymentStatus
 from app.modules.order.service import OrderService
+from app.modules.order.websocket import order_ws_manager
 from app.modules.user.model import User
 
 
 router = APIRouter(prefix="/orders", tags=["orders"])
+
+
+@router.websocket("/ws/{restaurant_id}")
+async def websocket_orders(websocket: WebSocket, restaurant_id: str):
+    """
+    WebSocket endpoint for real-time order updates scoped by restaurant.
+
+    Example:
+        const ws = new WebSocket('ws://localhost:8000/api/v1/orders/ws/<restaurant_id>');
+    """
+    await order_ws_manager.connect(websocket, restaurant_id)
+    try:
+        while True:
+            data = await websocket.receive_json()
+            if isinstance(data, dict) and data.get("type") == "ping":
+                await websocket.send_json(
+                    {
+                        "type": "pong",
+                        "timestamp": datetime.utcnow().isoformat(),
+                    }
+                )
+    except WebSocketDisconnect:
+        order_ws_manager.disconnect(websocket, restaurant_id)
+    except Exception:
+        order_ws_manager.disconnect(websocket, restaurant_id)
 
 
 @router.post("/", response_model=dict, status_code=status.HTTP_201_CREATED)
@@ -51,6 +77,21 @@ async def create_order(
         items = await OrderService.get_order_items(db, order.id)
         order_response = OrderResponse.model_validate(order)
         order_response.items = [OrderItemResponse.model_validate(item) for item in items]
+
+        # Best-effort WebSocket notification (do not affect response on failure)
+        try:
+            await order_ws_manager.broadcast(
+                order_data.restaurant_id,
+                {
+                    "type": "order_created",
+                    "restaurant_id": order_data.restaurant_id,
+                    "order_id": str(order.id),
+                    "order": order_response.model_dump(),
+                    "timestamp": datetime.utcnow().isoformat(),
+                },
+            )
+        except Exception:
+            pass
         
         return success_response(
             data=order_response,
@@ -223,6 +264,20 @@ async def update_order(
     items = await OrderService.get_order_items(db, order_id)
     order_response = OrderResponse.model_validate(order)
     order_response.items = [OrderItemResponse.model_validate(item) for item in items]
+
+    try:
+        await order_ws_manager.broadcast(
+            str(order.restaurant_id),
+            {
+                "type": "order_updated",
+                "restaurant_id": str(order.restaurant_id),
+                "order_id": str(order.id),
+                "order": order_response.model_dump(),
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+        )
+    except Exception:
+        pass
     
     return success_response(
         data=order_response,
@@ -257,6 +312,21 @@ async def update_order_status(
     # Reload order with items using selectinload
     order = await OrderService.get_order_by_id(db, order_id, include_items=True)
     order_response = OrderResponse.model_validate(order)
+
+    try:
+        await order_ws_manager.broadcast(
+            str(order.restaurant_id),
+            {
+                "type": "order_status_updated",
+                "restaurant_id": str(order.restaurant_id),
+                "order_id": str(order.id),
+                "status": status_data.status.value,
+                "order": order_response.model_dump(),
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+        )
+    except Exception:
+        pass
     
     return success_response(
         data=order_response,
