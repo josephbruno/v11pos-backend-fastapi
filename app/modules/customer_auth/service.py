@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import random
 import smtplib
@@ -15,6 +14,7 @@ from app.core.config import settings
 from app.core.security import create_access_token, create_refresh_token, decode_token, get_password_hash, verify_password
 from app.modules.customer.model import Customer
 from app.modules.customer.service import CustomerService
+from app.modules.customer.schema import CustomerUpdate
 from app.modules.customer_auth.email_templates import (
     RestaurantEmailContext,
     build_customer_otp_email,
@@ -150,6 +150,39 @@ class CustomerAuthService:
             raise CustomerAuthError("Customer not found or inactive", code="CUSTOMER_NOT_FOUND", status_code=401)
         if customer.restaurant_id and customer.restaurant_id != restaurant_id:
             raise CustomerAuthError("Restaurant mismatch", code="RESTAURANT_MISMATCH", status_code=401)
+        return customer
+
+    @staticmethod
+    async def login_with_google(
+        db: AsyncSession,
+        email: str,
+        restaurant_id: str,
+        *,
+        provided_name: Optional[str] = None,
+    ) -> Customer:
+        """
+        Login helper for customer "Google login" using client-provided email/name.
+
+        NOTE: This does not verify any external token. Email is treated as the identity key
+        within the restaurant scope (creates a minimal customer record if missing).
+        """
+        restaurant = await RestaurantService.get_restaurant_by_id(db, restaurant_id)
+        if not restaurant:
+            raise CustomerAuthError("Invalid restaurant_id", code="INVALID_RESTAURANT", status_code=404)
+
+        normalized_email = str(email).strip().lower()
+        if not normalized_email:
+            raise CustomerAuthError("Invalid email", code="INVALID_EMAIL", status_code=400)
+
+        customer = await CustomerAuthService._get_or_create_customer_by_email(db, normalized_email, restaurant_id)
+        if not customer.is_active:
+            raise CustomerAuthError("Customer not found or inactive", code="CUSTOMER_NOT_FOUND", status_code=401)
+
+        desired_name = (provided_name or "").strip()
+        if desired_name and desired_name != customer.name:
+            updated = await CustomerService.update_customer(db, customer.id, CustomerUpdate(name=desired_name))
+            customer = updated or customer
+
         return customer
 
     @staticmethod

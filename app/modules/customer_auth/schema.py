@@ -21,6 +21,22 @@ class CustomerRefreshTokenRequest(BaseModel):
     refresh_token: str = Field(..., min_length=10)
 
 
+class CustomerGoogleLoginRequest(BaseModel):
+    """
+    Customer login via Google (client-provided identity).
+
+    Note: This endpoint does NOT verify `id_token`. It uses `email` as the identity key
+    within the given `restaurant_id` (creates a minimal customer record if missing),
+    then issues JWT tokens.
+    """
+
+    restaurant_id: str = Field(..., min_length=36, max_length=36)
+    email: EmailStr
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    # Backward-compatible field: accepted but ignored (no verification performed).
+    id_token: Optional[str] = None
+
+
 class CustomerAuthTokenResponse(BaseModel):
     """Returned after successful OTP verification: customer profile plus JWT credentials."""
 

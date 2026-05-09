@@ -24,6 +24,7 @@ from app.modules.customer_auth.schema import (
     CustomerEmailOTPRequest,
     CustomerEmailOTPRequestResponse,
     CustomerEmailOTPVerify,
+    CustomerGoogleLoginRequest,
     CustomerRefreshTokenRequest,
 )
 from app.modules.customer_auth.service import CustomerAuthError, CustomerAuthService, send_customer_email_otp
@@ -196,6 +197,46 @@ async def refresh_customer_access_token(
         )
     except Exception as e:
         return error_response(message="Token refresh failed", error_code="INTERNAL_ERROR", error_details=str(e))
+
+
+@router.post("/google/login", response_model=None)
+async def customer_google_login(
+    payload: CustomerGoogleLoginRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Customer login using Google (client-provided email/name).
+
+    On success, **data** includes **customer** (full profile) and JWT **access_token** / **refresh_token**.
+    """
+    try:
+        customer = await CustomerAuthService.login_with_google(
+            db,
+            str(payload.email).lower(),
+            payload.restaurant_id,
+            provided_name=payload.name,
+        )
+        customer_full = await CustomerService.get_customer_by_id(db, customer.id)
+        customer_out = customer_full or customer
+        tokens = CustomerAuthService.issue_tokens(customer_out)
+        resp = CustomerAuthTokenResponse(
+            customer=CustomerResponse.model_validate(customer_out),
+            **tokens,
+        )
+        return success_response(message="Login successful", data=resp.model_dump())
+    except CustomerAuthError as e:
+        return error_response(
+            message=str(e),
+            error_code=e.code,
+            error_details=str(e),
+            status_code=e.status_code,
+        )
+    except Exception as e:
+        return error_response(
+            message="Google login failed",
+            error_code="INTERNAL_ERROR",
+            error_details=str(e),
+        )
 
 
 @router.get("/me", response_model=None)
