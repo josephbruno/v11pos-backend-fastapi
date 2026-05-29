@@ -191,7 +191,9 @@ class OrderService:
     async def get_order_by_number(db: AsyncSession, order_number: str) -> Optional[Order]:
         """Get order by order number"""
         result = await db.execute(
-            select(Order).where(Order.order_number == order_number)
+            select(Order)
+            .options(selectinload(Order.items))
+            .where(Order.order_number == order_number)
         )
         return result.scalar_one_or_none()
 
@@ -308,8 +310,13 @@ class OrderService:
         total_result = await db.execute(count_query)
         total = total_result.scalar_one()
         
-        # Apply pagination and ordering
-        query = query.order_by(desc(Order.created_at)).offset(skip).limit(limit)
+        # Apply pagination, ordering, and eager loading for async-safe response serialization
+        query = (
+            query.options(selectinload(Order.items))
+            .order_by(desc(Order.created_at))
+            .offset(skip)
+            .limit(limit)
+        )
         
         result = await db.execute(query)
         orders = list(result.scalars().all())
