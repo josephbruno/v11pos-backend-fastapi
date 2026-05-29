@@ -4,7 +4,7 @@ import os
 import re
 import time
 import uuid
-from typing import Optional
+from typing import Any, Optional
 from urllib.parse import urlparse
 import mimetypes
 
@@ -216,3 +216,55 @@ def get_object_name_from_url(file_url: str) -> Optional[str]:
     if not object_name:
         return None
     return _normalize_object_name(object_name)
+
+
+def copy_file_url(file_url: Optional[str], folder: str) -> Optional[str]:
+    """
+    Copy an existing MinIO object referenced by public URL into a new object.
+    Returns a new public URL. Non-MinIO URLs are returned unchanged.
+    """
+    if not file_url:
+        return None
+
+    source_object = get_object_name_from_url(file_url)
+    if not source_object:
+        return file_url
+
+    folder_name = _normalize_folder(folder)
+    _, ext = os.path.splitext(source_object)
+    safe_ext = ext.lower() or ".bin"
+    destination_object = f"{folder_name}/{uuid.uuid4().hex}{safe_ext}"
+    client = get_minio_client()
+
+    try:
+        response = client.get_object(settings.MINIO_BUCKET, source_object)
+        try:
+            data = response.read()
+        finally:
+            response.close()
+            response.release_conn()
+
+        stat = client.stat_object(settings.MINIO_BUCKET, source_object)
+        content_type = stat.content_type or mimetypes.guess_type(source_object)[0] or "application/octet-stream"
+        client.put_object(
+            bucket_name=settings.MINIO_BUCKET,
+            object_name=destination_object,
+            data=io.BytesIO(data),
+            length=len(data),
+            content_type=content_type,
+        )
+    except S3Error as exc:
+        raise RuntimeError("Copy failed") from exc
+
+    return get_file_url(destination_object)
+
+
+def copy_file_urls_in_value(value: Any, folder: str) -> Any:
+    """Recursively copy MinIO URLs inside strings, lists, and dictionaries."""
+    if isinstance(value, str):
+        return copy_file_url(value, folder)
+    if isinstance(value, list):
+        return [copy_file_urls_in_value(item, folder) for item in value]
+    if isinstance(value, dict):
+        return {key: copy_file_urls_in_value(item, folder) for key, item in value.items()}
+    return value

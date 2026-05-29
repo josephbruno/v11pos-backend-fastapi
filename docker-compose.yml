@@ -13,7 +13,32 @@ services:
       - .:/app
     depends_on:
       - minio
+      - redis
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+  # Celery Worker for async background jobs
+  celery_worker:
+    build: .
+    container_name: celery_worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+      - minio
+    command: celery -A app.core.celery_app.celery_app worker --loglevel=info --queues=data_copy,celery
+
+  # Redis broker/backend for Celery
+  redis:
+    image: redis:7-alpine
+    container_name: redis_broker
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
 
   # MinIO Storage (S3-compatible)
   minio:
@@ -39,3 +64,4 @@ services:
 
 volumes:
   minio_data:
+  redis_data:

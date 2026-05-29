@@ -68,6 +68,10 @@ class Settings(BaseSettings):
     # When false, customer OTP emails are never sent (OTP still created; use development_otp in dev).
     EMAIL_ENABLED: Annotated[bool, BeforeValidator(_parse_bool_env)] = False
 
+    # Celery / Redis
+    CELERY_BROKER_URL: str = "redis://redis:6379/0"
+    CELERY_RESULT_BACKEND: str = "redis://redis:6379/1"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

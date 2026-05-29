@@ -32,7 +32,7 @@ async def copy_data(
     - **source_entity_ids**: Optional specific entity IDs to copy
     - **options**: Copy options (skip_duplicates, copy_images, etc.)
     
-    Returns list of copy operations created for each destination restaurant.
+    Returns copy operations queued for each destination restaurant.
     """
     try:
         results = await DataCopyService.perform_copy(
@@ -43,12 +43,14 @@ async def copy_data(
         
         return success_response(
             data={"copies": [r.model_dump() for r in results]},
-            message=f"Successfully initiated copy to {len(results)} restaurant(s)",
+            message=f"Successfully queued copy to {len(results)} restaurant(s)",
             status_code=status.HTTP_201_CREATED
         )
     except Exception as e:
         return error_response(
             message=f"Failed to copy data: {str(e)}",
+            error_code="DATA_COPY_QUEUE_ERROR",
+            error_details=str(e),
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 

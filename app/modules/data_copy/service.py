@@ -1,308 +1,668 @@
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, func
-from typing import List, Optional, Dict, Any, Tuple
-from datetime import datetime
-import uuid
+from __future__ import annotations
+
 import logging
-from app.modules.data_copy.model import DataCopy, CopyLog, CopyTemplate, CopyType, CopyStatus
+import uuid
+from datetime import datetime
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Type
+
+from sqlalchemy import and_, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.modules.data_copy.model import CopyLog, CopyStatus, CopyType, DataCopy
 from app.modules.data_copy.schema import (
-    DataCopyCreate, CopyOptions, CopyEntityIds,
-    DataCopyResponse, DataCopyDetailResponse, DataCopyListResponse,
-    CopyLogResponse, CopyLogListResponse,
-    CopyTemplateCreate, CopyTemplateUpdate, CopyTemplateResponse, CopyTemplateListResponse,
-    DuplicateCheckRequest, DuplicateCheckResponse, DuplicateItem,
-    CopyPreviewRequest, CopyPreviewResponse, PreviewItem,
-    CopyStatistics
+    CopyOptions,
+    CopyStatistics,
+    DataCopyCreate,
+    DataCopyListResponse,
+    DataCopyResponse,
 )
-from app.modules.product.model import Category, Product
+from app.modules.product.model import (
+    Category,
+    ComboItem,
+    ComboProduct,
+    Modifier,
+    ModifierOption,
+    Product,
+    ProductModifier,
+)
 from app.modules.restaurant.model import Restaurant
+from app.services.storage_service import copy_file_url, copy_file_urls_in_value
 
 logger = logging.getLogger(__name__)
 
 
 class DataCopyService:
-    """Service for copying data between restaurants"""
-    
+    """Service for copying restaurant data in Celery-backed background jobs."""
+
+    CATEGORY_MEDIA_FIELDS = ("image", "icon", "banner_image", "thumbnail")
+    PRODUCT_MEDIA_FIELDS = ("image", "thumbnail", "images", "gallery")
+    MODIFIER_MEDIA_FIELDS = ("icon_url",)
+    COMBO_MEDIA_FIELDS = ("image",)
+
     @staticmethod
     async def generate_copy_number() -> str:
-        """Generate unique copy number"""
         timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
         random_suffix = str(uuid.uuid4())[:8].upper()
         return f"CPY-{timestamp}-{random_suffix}"
-    
+
+    @staticmethod
+    async def perform_copy(
+        db: AsyncSession,
+        copy_data: DataCopyCreate,
+        current_user_id: str,
+    ) -> List[DataCopyResponse]:
+        """
+        Create copy operation rows and enqueue one Celery task per destination.
+        The actual data copy happens in the worker.
+        """
+        from app.modules.data_copy.tasks import run_data_copy
+
+        source = await db.get(Restaurant, copy_data.source_restaurant_id)
+        if not source:
+            raise ValueError("Source restaurant not found")
+
+        operations: List[DataCopy] = []
+        for destination_id in copy_data.destination_restaurant_ids:
+            if destination_id == copy_data.source_restaurant_id:
+                raise ValueError("Destination restaurant cannot be the same as source restaurant")
+
+            destination = await db.get(Restaurant, destination_id)
+            if not destination:
+                raise ValueError(f"Destination restaurant not found: {destination_id}")
+
+            operation = await DataCopyService.create_copy_operation(
+                db=db,
+                source_restaurant_id=copy_data.source_restaurant_id,
+                destination_restaurant_id=destination_id,
+                copy_data=copy_data,
+                current_user_id=current_user_id,
+            )
+            task = run_data_copy.delay(operation.id)
+            operation.copy_metadata = {
+                **(operation.copy_metadata or {}),
+                "celery_task_id": task.id,
+                "queued_at": datetime.utcnow().isoformat(),
+            }
+            operations.append(operation)
+
+        await db.commit()
+        for operation in operations:
+            await db.refresh(operation)
+
+        return [DataCopyService.to_response(operation) for operation in operations]
+
     @staticmethod
     async def create_copy_operation(
         db: AsyncSession,
         source_restaurant_id: str,
         destination_restaurant_id: str,
         copy_data: DataCopyCreate,
-        current_user_id: str
+        current_user_id: str,
     ) -> DataCopy:
-        """Create a new copy operation record"""
         copy_number = await DataCopyService.generate_copy_number()
-        copy_name = copy_data.copy_name or f"Copy from Restaurant {source_restaurant_id}"
-        
-        data_copy = DataCopy(
+        options = copy_data.options or CopyOptions()
+        operation = DataCopy(
             source_restaurant_id=source_restaurant_id,
             destination_restaurant_id=destination_restaurant_id,
             copy_number=copy_number,
-            copy_name=copy_name,
-            copy_type=copy_data.copy_type.value,
+            copy_name=copy_data.copy_name or f"Copy from {source_restaurant_id}",
+            copy_type=DataCopyService._enum_value(copy_data.copy_type),
             status=CopyStatus.PENDING.value,
-            skip_duplicates=copy_data.options.skip_duplicates if copy_data.options else True,
-            copy_images=copy_data.options.copy_images if copy_data.options else True,
-            copy_prices=copy_data.options.copy_prices if copy_data.options else True,
-            copy_stock=copy_data.options.copy_stock if copy_data.options else False,
-            maintain_relationships=copy_data.options.maintain_relationships if copy_data.options else True,
-            source_entity_ids=copy_data.source_entity_ids.model_dump() if copy_data.source_entity_ids else None,
+            skip_duplicates=options.skip_duplicates,
+            copy_images=options.copy_images,
+            copy_prices=options.copy_prices,
+            copy_stock=options.copy_stock,
+            maintain_relationships=options.maintain_relationships,
+            source_entity_ids=copy_data.source_entity_ids.model_dump(exclude_none=True)
+            if copy_data.source_entity_ids
+            else None,
             copied_by=current_user_id,
-            notes=copy_data.notes
+            notes=copy_data.notes,
+            copy_metadata={
+                "include_inactive": options.include_inactive,
+                "include_unavailable": options.include_unavailable,
+            },
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
         )
-        
-        db.add(data_copy)
-        await db.commit()
-        await db.refresh(data_copy)
-        
-        return data_copy
-    
+        db.add(operation)
+        await db.flush()
+        await db.refresh(operation)
+        return operation
+
     @staticmethod
-    async def check_duplicate_category(
-        db: AsyncSession,
-        category_name: str,
-        destination_restaurant_id: str
-    ) -> Optional[str]:
-        """Check if category already exists in destination restaurant"""
-        query = select(Category.id).where(
-            and_(
-                Category.restaurant_id == destination_restaurant_id,
-                func.lower(Category.name) == func.lower(category_name),
-                Category.deleted_at.is_(None)
+    async def process_copy_operation(db: AsyncSession, copy_id: str) -> str:
+        operation = await DataCopyService.get_copy_by_id(db, copy_id)
+        if not operation:
+            raise ValueError(f"Copy operation not found: {copy_id}")
+
+        if operation.status == CopyStatus.COMPLETED.value:
+            return operation.status
+
+        try:
+            operation.status = CopyStatus.PROCESSING.value
+            operation.processing_started_at = datetime.utcnow()
+            operation.error_message = None
+            operation.error_details = None
+            await db.commit()
+            await db.refresh(operation)
+
+            options = DataCopyService.options_from_operation(operation)
+            entity_mapping: Dict[str, Dict[str, str]] = {
+                "categories": {},
+                "products": {},
+                "modifiers": {},
+                "modifier_options": {},
+                "combos": {},
+            }
+
+            await DataCopyService.copy_categories_for_operation(db, operation, options, entity_mapping)
+            await DataCopyService.copy_modifiers_for_operation(db, operation, options, entity_mapping)
+            await DataCopyService.copy_products_for_operation(db, operation, options, entity_mapping)
+            await DataCopyService.copy_product_modifier_links(db, operation, entity_mapping)
+            await DataCopyService.copy_combos_for_operation(db, operation, options, entity_mapping)
+
+            status = CopyStatus.COMPLETED.value
+            if operation.items_failed:
+                status = CopyStatus.PARTIAL.value if operation.items_copied else CopyStatus.FAILED.value
+
+            operation.status = status
+            operation.processing_completed_at = datetime.utcnow()
+            operation.processing_time = int(
+                (operation.processing_completed_at - operation.processing_started_at).total_seconds()
             )
-        )
-        result = await db.execute(query)
-        existing = result.scalar_one_or_none()
-        return existing
-    
+            operation.total_items = operation.items_copied + operation.items_skipped + operation.items_failed
+            operation.entity_mapping = entity_mapping
+            operation.copy_summary = {
+                "categories": operation.categories_copied,
+                "products": operation.products_copied,
+                "modifiers": operation.modifiers_copied,
+                "combos": operation.combos_copied,
+            }
+            operation.updated_at = datetime.utcnow()
+            await db.commit()
+            return operation.status
+        except Exception as exc:
+            logger.exception("Data copy failed for %s", copy_id)
+            operation.status = CopyStatus.FAILED.value
+            operation.processing_completed_at = datetime.utcnow()
+            if operation.processing_started_at:
+                operation.processing_time = int(
+                    (operation.processing_completed_at - operation.processing_started_at).total_seconds()
+                )
+            operation.error_message = str(exc)
+            operation.error_details = {"error_type": type(exc).__name__}
+            operation.updated_at = datetime.utcnow()
+            await db.commit()
+            raise
+
     @staticmethod
-    async def check_duplicate_product(
+    async def copy_categories_for_operation(
         db: AsyncSession,
-        product_name: str,
-        destination_restaurant_id: str
-    ) -> Optional[str]:
-        """Check if product already exists in destination restaurant"""
-        query = select(Product.id).where(
-            and_(
-                Product.restaurant_id == destination_restaurant_id,
-                func.lower(Product.name) == func.lower(product_name),
-                Product.deleted_at.is_(None)
-            )
+        operation: DataCopy,
+        options: CopyOptions,
+        entity_mapping: Dict[str, Dict[str, str]],
+    ) -> None:
+        copy_type = DataCopyService._normalized_value(operation.copy_type)
+        if copy_type not in {
+            CopyType.CATEGORY.value,
+            CopyType.CATEGORY_PRODUCTS.value,
+            CopyType.FULL_MENU.value,
+        }:
+            return
+
+        category_ids = DataCopyService._selected_ids(operation, "category_ids")
+        query = select(Category).where(
+            Category.restaurant_id == operation.source_restaurant_id,
+            Category.deleted_at.is_(None),
         )
+        if category_ids:
+            query = query.where(Category.id.in_(category_ids))
+        if not options.include_inactive:
+            query = query.where(Category.active.is_(True))
+        query = query.order_by(Category.level.asc(), Category.sort_order.asc(), Category.created_at.asc())
+
         result = await db.execute(query)
-        existing = result.scalar_one_or_none()
-        return existing
-    
+        for source in result.scalars().all():
+            destination_id, status = await DataCopyService.copy_category(
+                db, source, operation, options, entity_mapping["categories"]
+            )
+            DataCopyService._increment(operation, "categories", status)
+            if destination_id:
+                entity_mapping["categories"][source.id] = destination_id
+
+    @staticmethod
+    async def copy_products_for_operation(
+        db: AsyncSession,
+        operation: DataCopy,
+        options: CopyOptions,
+        entity_mapping: Dict[str, Dict[str, str]],
+    ) -> None:
+        copy_type = DataCopyService._normalized_value(operation.copy_type)
+        if copy_type not in {
+            CopyType.PRODUCT.value,
+            CopyType.CATEGORY_PRODUCTS.value,
+            CopyType.FULL_MENU.value,
+        }:
+            return
+
+        product_ids = DataCopyService._selected_ids(operation, "product_ids")
+        query = select(Product).where(
+            Product.restaurant_id == operation.source_restaurant_id,
+            Product.deleted_at.is_(None),
+        )
+        if product_ids:
+            query = query.where(Product.id.in_(product_ids))
+        if not options.include_inactive:
+            query = query.where(Product.is_published.is_(True))
+        if not options.include_unavailable:
+            query = query.where(Product.available.is_(True))
+        query = query.order_by(Product.sort_order.asc(), Product.created_at.asc())
+
+        result = await db.execute(query)
+        for source in result.scalars().all():
+            if source.category_id and source.category_id not in entity_mapping["categories"]:
+                source_category = await db.get(Category, source.category_id)
+                if source_category:
+                    category_id, category_status = await DataCopyService.copy_category(
+                        db,
+                        source_category,
+                        operation,
+                        options,
+                        entity_mapping["categories"],
+                    )
+                    DataCopyService._increment(operation, "categories", category_status)
+                    if category_id:
+                        entity_mapping["categories"][source.category_id] = category_id
+
+            destination_id, status = await DataCopyService.copy_product(
+                db, source, operation, options, entity_mapping["categories"]
+            )
+            DataCopyService._increment(operation, "products", status)
+            if destination_id:
+                entity_mapping["products"][source.id] = destination_id
+
+    @staticmethod
+    async def copy_modifiers_for_operation(
+        db: AsyncSession,
+        operation: DataCopy,
+        options: CopyOptions,
+        entity_mapping: Dict[str, Dict[str, str]],
+    ) -> None:
+        copy_type = DataCopyService._normalized_value(operation.copy_type)
+        if copy_type not in {CopyType.MODIFIER.value, CopyType.FULL_MENU.value}:
+            return
+
+        modifier_ids = DataCopyService._selected_ids(operation, "modifier_ids")
+        query = select(Modifier).where(Modifier.restaurant_id == operation.source_restaurant_id)
+        if modifier_ids:
+            query = query.where(Modifier.id.in_(modifier_ids))
+        query = query.order_by(Modifier.created_at.asc())
+
+        result = await db.execute(query)
+        for source in result.scalars().all():
+            destination_id, status = await DataCopyService.copy_modifier(
+                db, source, operation, options, entity_mapping
+            )
+            DataCopyService._increment(operation, "modifiers", status)
+            if destination_id:
+                entity_mapping["modifiers"][source.id] = destination_id
+
+    @staticmethod
+    async def copy_combos_for_operation(
+        db: AsyncSession,
+        operation: DataCopy,
+        options: CopyOptions,
+        entity_mapping: Dict[str, Dict[str, str]],
+    ) -> None:
+        copy_type = DataCopyService._normalized_value(operation.copy_type)
+        if copy_type not in {CopyType.COMBO.value, CopyType.FULL_MENU.value}:
+            return
+
+        combo_ids = DataCopyService._selected_ids(operation, "combo_ids")
+        query = select(ComboProduct).where(ComboProduct.restaurant_id == operation.source_restaurant_id)
+        if combo_ids:
+            query = query.where(ComboProduct.id.in_(combo_ids))
+        if not options.include_unavailable:
+            query = query.where(ComboProduct.available.is_(True))
+        query = query.order_by(ComboProduct.created_at.asc())
+
+        result = await db.execute(query)
+        for source in result.scalars().all():
+            destination_id, status = await DataCopyService.copy_combo(
+                db, source, operation, options, entity_mapping
+            )
+            DataCopyService._increment(operation, "combos", status)
+            if destination_id:
+                entity_mapping["combos"][source.id] = destination_id
+
     @staticmethod
     async def copy_category(
         db: AsyncSession,
-        source_category: Category,
-        destination_restaurant_id: str,
-        data_copy_id: str,
-        options: CopyOptions
-    ) -> Tuple[Optional[str], str, Optional[str]]:
-        """
-        Copy a single category to destination restaurant
-        Returns: (new_category_id, status, error_message)
-        """
+        source: Category,
+        operation: DataCopy,
+        options: CopyOptions,
+        category_mapping: Dict[str, str],
+    ) -> Tuple[Optional[str], str]:
+        existing_id = None
+        if options.skip_duplicates:
+            existing_id = await DataCopyService.find_duplicate(db, Category, source.name, operation.destination_restaurant_id)
+        if existing_id:
+            await DataCopyService.create_duplicate_log(db, operation.id, source.id, "category", source.name, existing_id)
+            operation.duplicates_found += 1
+            operation.duplicates_skipped += 1
+            return existing_id if options.maintain_relationships else None, "skipped"
+
         try:
-            # Check for duplicates
-            existing_id = await DataCopyService.check_duplicate_category(
-                db, source_category.name, destination_restaurant_id
-            )
-            
-            if existing_id:
-                # Log as duplicate
-                await DataCopyService.create_copy_log(
-                    db=db,
-                    data_copy_id=data_copy_id,
-                    source_entity_id=source_category.id,
-                    source_entity_type="category",
-                    source_entity_name=source_category.name,
-                    status="skipped",
-                    action_taken="skipped",
-                    is_duplicate=True,
-                    duplicate_field="name",
-                    duplicate_value=source_category.name,
-                    existing_entity_id=existing_id
-                )
-                return None, "skipped", "Duplicate category"
-            
-            # Create new category
-            new_category = Category(
-                id=str(uuid.uuid4()),
-                restaurant_id=destination_restaurant_id,
-                name=source_category.name,
-                description=source_category.description,
-                image=source_category.image if options.copy_images else None,
-                is_active=source_category.is_active,
-                display_order=source_category.display_order,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
-            )
-            
-            db.add(new_category)
-            
-            # Log success
-            await DataCopyService.create_copy_log(
-                db=db,
-                data_copy_id=data_copy_id,
-                source_entity_id=source_category.id,
-                source_entity_type="category",
-                source_entity_name=source_category.name,
-                destination_entity_id=new_category.id,
-                destination_entity_type="category",
-                status="success",
-                action_taken="copied"
-            )
-            
-            return new_category.id, "success", None
-            
-        except Exception as e:
-            logger.error(f"Error copying category {source_category.id}: {str(e)}")
-            
-            # Log failure
-            await DataCopyService.create_copy_log(
-                db=db,
-                data_copy_id=data_copy_id,
-                source_entity_id=source_category.id,
-                source_entity_type="category",
-                source_entity_name=source_category.name,
-                status="failed",
-                action_taken="failed",
-                error_message=str(e),
-                error_type=type(e).__name__
-            )
-            
-            return None, "failed", str(e)
-    
+            overrides = {
+                "id": str(uuid.uuid4()),
+                "restaurant_id": operation.destination_restaurant_id,
+                "parent_id": category_mapping.get(source.parent_id) if source.parent_id else None,
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow(),
+                "deleted_at": None,
+            }
+            data = DataCopyService.clone_column_data(source, Category, overrides)
+            if options.copy_images:
+                DataCopyService.copy_media_fields(data, DataCopyService.CATEGORY_MEDIA_FIELDS, "categories")
+            else:
+                DataCopyService.clear_fields(data, DataCopyService.CATEGORY_MEDIA_FIELDS)
+
+            destination = Category(**data)
+            db.add(destination)
+            await db.flush()
+            await DataCopyService.create_success_log(db, operation.id, source.id, "category", source.name, destination.id)
+            return destination.id, "success"
+        except Exception as exc:
+            await DataCopyService.create_failure_log(db, operation.id, source.id, "category", source.name, exc)
+            return None, "failed"
+
     @staticmethod
     async def copy_product(
         db: AsyncSession,
-        source_product: Product,
-        destination_restaurant_id: str,
-        data_copy_id: str,
+        source: Product,
+        operation: DataCopy,
         options: CopyOptions,
-        category_mapping: Dict[str, str]
-    ) -> Tuple[Optional[str], str, Optional[str]]:
-        """
-        Copy a single product to destination restaurant
-        Returns: (new_product_id, status, error_message)
-        """
+        category_mapping: Dict[str, str],
+    ) -> Tuple[Optional[str], str]:
+        existing_id = None
+        if options.skip_duplicates:
+            existing_id = await DataCopyService.find_duplicate(db, Product, source.name, operation.destination_restaurant_id)
+        if existing_id:
+            await DataCopyService.create_duplicate_log(db, operation.id, source.id, "product", source.name, existing_id)
+            operation.duplicates_found += 1
+            operation.duplicates_skipped += 1
+            return existing_id if operation.maintain_relationships else None, "skipped"
+
+        new_category_id = category_mapping.get(source.category_id)
+        if not new_category_id:
+            existing_category_id = await DataCopyService.find_duplicate_category_by_source(
+                db, source.category_id, operation.destination_restaurant_id
+            )
+            if existing_category_id:
+                new_category_id = existing_category_id
+                category_mapping[source.category_id] = existing_category_id
+        if not new_category_id:
+            await DataCopyService.create_skipped_log(
+                db, operation.id, source.id, "product", source.name, "Category not copied"
+            )
+            return None, "skipped"
+
         try:
-            # Check for duplicates
-            existing_id = await DataCopyService.check_duplicate_product(
-                db, source_product.name, destination_restaurant_id
+            overrides = {
+                "id": str(uuid.uuid4()),
+                "restaurant_id": operation.destination_restaurant_id,
+                "category_id": new_category_id,
+                "sku": None,
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow(),
+                "published_at": None,
+                "deleted_at": None,
+            }
+            data = DataCopyService.clone_column_data(source, Product, overrides)
+            if not options.copy_prices:
+                for field in ("price", "cost", "compare_at_price", "wholesale_price", "min_price", "max_price"):
+                    if field in data:
+                        data[field] = 0 if field in {"price", "cost"} else None
+            if not options.copy_stock:
+                for field in ("stock", "min_stock", "max_stock", "reorder_point", "reorder_quantity"):
+                    if field in data:
+                        data[field] = 0 if field in {"stock", "min_stock"} else None
+            if options.copy_images:
+                DataCopyService.copy_media_fields(data, DataCopyService.PRODUCT_MEDIA_FIELDS, "products")
+            else:
+                DataCopyService.clear_fields(data, DataCopyService.PRODUCT_MEDIA_FIELDS)
+
+            destination = Product(**data)
+            db.add(destination)
+            await db.flush()
+            await DataCopyService.create_success_log(db, operation.id, source.id, "product", source.name, destination.id)
+            return destination.id, "success"
+        except Exception as exc:
+            await DataCopyService.create_failure_log(db, operation.id, source.id, "product", source.name, exc)
+            return None, "failed"
+
+    @staticmethod
+    async def copy_modifier(
+        db: AsyncSession,
+        source: Modifier,
+        operation: DataCopy,
+        options: CopyOptions,
+        entity_mapping: Dict[str, Dict[str, str]],
+    ) -> Tuple[Optional[str], str]:
+        existing_id = None
+        if options.skip_duplicates:
+            existing_id = await DataCopyService.find_duplicate(db, Modifier, source.name, operation.destination_restaurant_id)
+        if existing_id:
+            await DataCopyService.create_duplicate_log(db, operation.id, source.id, "modifier", source.name, existing_id)
+            operation.duplicates_found += 1
+            operation.duplicates_skipped += 1
+            return existing_id if operation.maintain_relationships else None, "skipped"
+
+        try:
+            data = DataCopyService.clone_column_data(
+                source,
+                Modifier,
+                {
+                    "id": str(uuid.uuid4()),
+                    "restaurant_id": operation.destination_restaurant_id,
+                    "created_at": datetime.utcnow(),
+                    "updated_at": datetime.utcnow(),
+                },
             )
-            
-            if existing_id:
-                # Log as duplicate
-                await DataCopyService.create_copy_log(
-                    db=db,
-                    data_copy_id=data_copy_id,
-                    source_entity_id=source_product.id,
-                    source_entity_type="product",
-                    source_entity_name=source_product.name,
-                    status="skipped",
-                    action_taken="skipped",
-                    is_duplicate=True,
-                    duplicate_field="name",
-                    duplicate_value=source_product.name,
-                    existing_entity_id=existing_id
+            if options.copy_images:
+                DataCopyService.copy_media_fields(data, DataCopyService.MODIFIER_MEDIA_FIELDS, "modifiers")
+            else:
+                DataCopyService.clear_fields(data, DataCopyService.MODIFIER_MEDIA_FIELDS)
+
+            destination = Modifier(**data)
+            db.add(destination)
+            await db.flush()
+
+            options_result = await db.execute(select(ModifierOption).where(ModifierOption.modifier_id == source.id))
+            for source_option in options_result.scalars().all():
+                option_data = DataCopyService.clone_column_data(
+                    source_option,
+                    ModifierOption,
+                    {
+                        "id": str(uuid.uuid4()),
+                        "restaurant_id": operation.destination_restaurant_id,
+                        "modifier_id": destination.id,
+                        "price": source_option.price if options.copy_prices else 0,
+                        "created_at": datetime.utcnow(),
+                        "updated_at": datetime.utcnow(),
+                    },
                 )
-                return None, "skipped", "Duplicate product"
-            
-            # Map category ID if maintaining relationships
-            new_category_id = None
-            if options.maintain_relationships and source_product.category_id:
-                new_category_id = category_mapping.get(source_product.category_id)
-                if not new_category_id:
-                    # Category not copied, skip product
-                    await DataCopyService.create_copy_log(
-                        db=db,
-                        data_copy_id=data_copy_id,
-                        source_entity_id=source_product.id,
-                        source_entity_type="product",
-                        source_entity_name=source_product.name,
-                        status="skipped",
-                        action_taken="skipped",
-                        error_message="Category not found in destination"
-                    )
-                    return None, "skipped", "Category not copied"
-            
-            # Create new product
-            new_product = Product(
-                id=str(uuid.uuid4()),
-                restaurant_id=destination_restaurant_id,
-                category_id=new_category_id,
-                name=source_product.name,
-                description=source_product.description,
-                image=source_product.image if options.copy_images else None,
-                price=source_product.price if options.copy_prices else 0,
-                cost_price=source_product.cost_price if options.copy_prices else 0,
-                discount_price=source_product.discount_price if options.copy_prices else None,
-                sku=source_product.sku,
-                barcode=source_product.barcode,
-                stock_quantity=source_product.stock_quantity if options.copy_stock else 0,
-                low_stock_threshold=source_product.low_stock_threshold,
-                track_inventory=source_product.track_inventory,
-                is_active=source_product.is_active,
-                is_available=source_product.is_available,
-                is_featured=source_product.is_featured,
-                tax_rate=source_product.tax_rate,
-                preparation_time=source_product.preparation_time,
-                calories=source_product.calories,
-                is_vegetarian=source_product.is_vegetarian,
-                is_vegan=source_product.is_vegan,
-                is_gluten_free=source_product.is_gluten_free,
-                allergen_info=source_product.allergen_info,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                destination_option = ModifierOption(**option_data)
+                db.add(destination_option)
+                await db.flush()
+                entity_mapping["modifier_options"][source_option.id] = destination_option.id
+
+            await DataCopyService.create_success_log(db, operation.id, source.id, "modifier", source.name, destination.id)
+            return destination.id, "success"
+        except Exception as exc:
+            await DataCopyService.create_failure_log(db, operation.id, source.id, "modifier", source.name, exc)
+            return None, "failed"
+
+    @staticmethod
+    async def copy_product_modifier_links(
+        db: AsyncSession,
+        operation: DataCopy,
+        entity_mapping: Dict[str, Dict[str, str]],
+    ) -> None:
+        if not operation.maintain_relationships:
+            return
+        if not entity_mapping["products"] or not entity_mapping["modifiers"]:
+            return
+
+        result = await db.execute(
+            select(ProductModifier).where(
+                ProductModifier.restaurant_id == operation.source_restaurant_id,
+                ProductModifier.product_id.in_(entity_mapping["products"].keys()),
             )
-            
-            db.add(new_product)
-            
-            # Log success
-            await DataCopyService.create_copy_log(
-                db=db,
-                data_copy_id=data_copy_id,
-                source_entity_id=source_product.id,
-                source_entity_type="product",
-                source_entity_name=source_product.name,
-                destination_entity_id=new_product.id,
-                destination_entity_type="product",
-                status="success",
-                action_taken="copied"
+        )
+        for source_link in result.scalars().all():
+            product_id = entity_mapping["products"].get(source_link.product_id)
+            modifier_id = entity_mapping["modifiers"].get(source_link.modifier_id)
+            if not product_id or not modifier_id:
+                continue
+            db.add(
+                ProductModifier(
+                    id=str(uuid.uuid4()),
+                    restaurant_id=operation.destination_restaurant_id,
+                    product_id=product_id,
+                    modifier_id=modifier_id,
+                    created_at=datetime.utcnow(),
+                )
             )
-            
-            return new_product.id, "success", None
-            
-        except Exception as e:
-            logger.error(f"Error copying product {source_product.id}: {str(e)}")
-            
-            # Log failure
-            await DataCopyService.create_copy_log(
-                db=db,
-                data_copy_id=data_copy_id,
-                source_entity_id=source_product.id,
-                source_entity_type="product",
-                source_entity_name=source_product.name,
-                status="failed",
-                action_taken="failed",
-                error_message=str(e),
-                error_type=type(e).__name__
+        await db.flush()
+
+    @staticmethod
+    async def copy_combo(
+        db: AsyncSession,
+        source: ComboProduct,
+        operation: DataCopy,
+        options: CopyOptions,
+        entity_mapping: Dict[str, Dict[str, str]],
+    ) -> Tuple[Optional[str], str]:
+        existing_id = None
+        if options.skip_duplicates:
+            existing_id = await DataCopyService.find_duplicate(db, ComboProduct, source.name, operation.destination_restaurant_id)
+        if existing_id:
+            await DataCopyService.create_duplicate_log(db, operation.id, source.id, "combo", source.name, existing_id)
+            operation.duplicates_found += 1
+            operation.duplicates_skipped += 1
+            return existing_id if operation.maintain_relationships else None, "skipped"
+
+        category_id = entity_mapping["categories"].get(source.category_id)
+        if not category_id:
+            await DataCopyService.create_skipped_log(
+                db, operation.id, source.id, "combo", source.name, "Category not copied"
             )
-            
-            return None, "failed", str(e)
-    
+            return None, "skipped"
+
+        try:
+            data = DataCopyService.clone_column_data(
+                source,
+                ComboProduct,
+                {
+                    "id": str(uuid.uuid4()),
+                    "restaurant_id": operation.destination_restaurant_id,
+                    "category_id": category_id,
+                    "price": source.price if options.copy_prices else 0,
+                    "created_at": datetime.utcnow(),
+                    "updated_at": datetime.utcnow(),
+                },
+            )
+            if options.copy_images:
+                DataCopyService.copy_media_fields(data, DataCopyService.COMBO_MEDIA_FIELDS, "combos")
+            else:
+                DataCopyService.clear_fields(data, DataCopyService.COMBO_MEDIA_FIELDS)
+
+            destination = ComboProduct(**data)
+            db.add(destination)
+            await db.flush()
+
+            result = await db.execute(select(ComboItem).where(ComboItem.combo_id == source.id))
+            for source_item in result.scalars().all():
+                product_id = entity_mapping["products"].get(source_item.product_id)
+                if not product_id:
+                    continue
+                item_data = DataCopyService.clone_column_data(
+                    source_item,
+                    ComboItem,
+                    {
+                        "id": str(uuid.uuid4()),
+                        "restaurant_id": operation.destination_restaurant_id,
+                        "combo_id": destination.id,
+                        "product_id": product_id,
+                        "created_at": datetime.utcnow(),
+                    },
+                )
+                db.add(ComboItem(**item_data))
+
+            await db.flush()
+            await DataCopyService.create_success_log(db, operation.id, source.id, "combo", source.name, destination.id)
+            return destination.id, "success"
+        except Exception as exc:
+            await DataCopyService.create_failure_log(db, operation.id, source.id, "combo", source.name, exc)
+            return None, "failed"
+
+    @staticmethod
+    def clone_column_data(source: Any, model: Type[Any], overrides: Dict[str, Any]) -> Dict[str, Any]:
+        data = {}
+        for column in model.__table__.columns:
+            key = column.name
+            if key in overrides:
+                data[key] = overrides[key]
+            elif hasattr(source, key):
+                data[key] = getattr(source, key)
+        return data
+
+    @staticmethod
+    def copy_media_fields(data: Dict[str, Any], fields: Iterable[str], folder: str) -> None:
+        for field in fields:
+            if field not in data:
+                continue
+            value = data.get(field)
+            if field in {"images", "gallery"}:
+                data[field] = copy_file_urls_in_value(value, folder)
+            else:
+                data[field] = copy_file_url(value, folder)
+
+    @staticmethod
+    def clear_fields(data: Dict[str, Any], fields: Iterable[str]) -> None:
+        for field in fields:
+            if field in data:
+                data[field] = None
+
+    @staticmethod
+    async def find_duplicate(
+        db: AsyncSession,
+        model: Type[Any],
+        name: str,
+        restaurant_id: str,
+    ) -> Optional[str]:
+        conditions = [
+            model.restaurant_id == restaurant_id,
+            func.lower(model.name) == func.lower(name),
+        ]
+        if hasattr(model, "deleted_at"):
+            conditions.append(model.deleted_at.is_(None))
+        result = await db.execute(select(model.id).where(and_(*conditions)))
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def find_duplicate_category_by_source(
+        db: AsyncSession,
+        source_category_id: str,
+        destination_restaurant_id: str,
+    ) -> Optional[str]:
+        source = await db.get(Category, source_category_id)
+        if not source:
+            return None
+        return await DataCopyService.find_duplicate(db, Category, source.name, destination_restaurant_id)
+
     @staticmethod
     async def create_copy_log(
         db: AsyncSession,
@@ -319,9 +679,8 @@ class DataCopyService:
         duplicate_value: Optional[str] = None,
         existing_entity_id: Optional[str] = None,
         error_message: Optional[str] = None,
-        error_type: Optional[str] = None
+        error_type: Optional[str] = None,
     ) -> CopyLog:
-        """Create a copy log entry"""
         copy_log = CopyLog(
             data_copy_id=data_copy_id,
             source_entity_id=source_entity_id,
@@ -337,209 +696,184 @@ class DataCopyService:
             existing_entity_id=existing_entity_id,
             error_message=error_message,
             error_type=error_type,
-            processed_at=datetime.utcnow()
+            processed_at=datetime.utcnow(),
         )
-        
         db.add(copy_log)
         return copy_log
-    
+
     @staticmethod
-    async def perform_copy(
+    async def create_success_log(
         db: AsyncSession,
-        copy_data: DataCopyCreate,
-        current_user_id: str
-    ) -> List[DataCopyResponse]:
-        """Perform the actual copy operation for all destination restaurants"""
-        results = []
-        
-        for destination_id in copy_data.destination_restaurant_ids:
-            try:
-                # Create copy operation record
-                data_copy = await DataCopyService.create_copy_operation(
-                    db=db,
-                    source_restaurant_id=copy_data.source_restaurant_id,
-                    destination_restaurant_id=destination_id,
-                    copy_data=copy_data,
-                    current_user_id=current_user_id
-                )
-                
-                # Update status to processing
-                data_copy.status = CopyStatus.PROCESSING.value
-                data_copy.processing_started_at = datetime.utcnow()
-                await db.commit()
-                
-                # Initialize counters
-                categories_copied = 0
-                categories_skipped = 0
-                products_copied = 0
-                products_skipped = 0
-                category_mapping: Dict[str, str] = {}
-                
-                options = copy_data.options or CopyOptions()
-                
-                # Copy categories
-                if copy_data.copy_type in [CopyType.CATEGORY, CopyType.CATEGORY_PRODUCTS, CopyType.FULL_MENU]:
-                    category_ids = []
-                    if copy_data.source_entity_ids and copy_data.source_entity_ids.category_ids:
-                        category_ids = copy_data.source_entity_ids.category_ids
-                    else:
-                        # Get all categories from source restaurant
-                        query = select(Category).where(
-                            and_(
-                                Category.restaurant_id == copy_data.source_restaurant_id,
-                                Category.deleted_at.is_(None)
-                            )
-                        )
-                        if not options.include_inactive:
-                            query = query.where(Category.is_active == True)
-                        
-                        result = await db.execute(query)
-                        categories = result.scalars().all()
-                        category_ids = [c.id for c in categories]
-                    
-                    # Copy each category
-                    for cat_id in category_ids:
-                        category_query = select(Category).where(Category.id == cat_id)
-                        cat_result = await db.execute(category_query)
-                        category = cat_result.scalar_one_or_none()
-                        
-                        if category:
-                            new_id, status, error = await DataCopyService.copy_category(
-                                db=db,
-                                source_category=category,
-                                destination_restaurant_id=destination_id,
-                                data_copy_id=data_copy.id,
-                                options=options
-                            )
-                            
-                            if status == "success" and new_id:
-                                categories_copied += 1
-                                category_mapping[cat_id] = new_id
-                            elif status == "skipped":
-                                categories_skipped += 1
-                
-                # Copy products
-                if copy_data.copy_type in [CopyType.PRODUCT, CopyType.CATEGORY_PRODUCTS, CopyType.FULL_MENU]:
-                    product_ids = []
-                    if copy_data.source_entity_ids and copy_data.source_entity_ids.product_ids:
-                        product_ids = copy_data.source_entity_ids.product_ids
-                    else:
-                        # Get all products from source restaurant
-                        query = select(Product).where(
-                            and_(
-                                Product.restaurant_id == copy_data.source_restaurant_id,
-                                Product.deleted_at.is_(None)
-                            )
-                        )
-                        if not options.include_inactive:
-                            query = query.where(Product.is_active == True)
-                        if not options.include_unavailable:
-                            query = query.where(Product.is_available == True)
-                        
-                        result = await db.execute(query)
-                        products = result.scalars().all()
-                        product_ids = [p.id for p in products]
-                    
-                    # Copy each product
-                    for prod_id in product_ids:
-                        product_query = select(Product).where(Product.id == prod_id)
-                        prod_result = await db.execute(product_query)
-                        product = prod_result.scalar_one_or_none()
-                        
-                        if product:
-                            new_id, status, error = await DataCopyService.copy_product(
-                                db=db,
-                                source_product=product,
-                                destination_restaurant_id=destination_id,
-                                data_copy_id=data_copy.id,
-                                options=options,
-                                category_mapping=category_mapping
-                            )
-                            
-                            if status == "success":
-                                products_copied += 1
-                            elif status == "skipped":
-                                products_skipped += 1
-                
-                # Update copy operation with results
-                data_copy.status = CopyStatus.COMPLETED.value
-                data_copy.processing_completed_at = datetime.utcnow()
-                data_copy.processing_time = int(
-                    (data_copy.processing_completed_at - data_copy.processing_started_at).total_seconds()
-                )
-                data_copy.categories_copied = categories_copied
-                data_copy.categories_skipped = categories_skipped
-                data_copy.products_copied = products_copied
-                data_copy.products_skipped = products_skipped
-                data_copy.items_copied = categories_copied + products_copied
-                data_copy.items_skipped = categories_skipped + products_skipped
-                data_copy.total_items = data_copy.items_copied + data_copy.items_skipped
-                data_copy.entity_mapping = category_mapping
-                
-                await db.commit()
-                await db.refresh(data_copy)
-                
-                # Convert to response
-                response = DataCopyResponse(
-                    id=data_copy.id,
-                    source_restaurant_id=data_copy.source_restaurant_id,
-                    destination_restaurant_id=data_copy.destination_restaurant_id,
-                    copy_number=data_copy.copy_number,
-                    copy_name=data_copy.copy_name,
-                    copy_type=data_copy.copy_type,
-                    status=data_copy.status,
-                    processing_started_at=data_copy.processing_started_at,
-                    processing_completed_at=data_copy.processing_completed_at,
-                    processing_time=data_copy.processing_time,
-                    statistics=CopyStatistics(
-                        total_items=data_copy.total_items,
-                        items_copied=data_copy.items_copied,
-                        items_skipped=data_copy.items_skipped,
-                        items_failed=data_copy.items_failed,
-                        categories_copied=data_copy.categories_copied,
-                        categories_skipped=data_copy.categories_skipped,
-                        products_copied=data_copy.products_copied,
-                        products_skipped=data_copy.products_skipped,
-                        combos_copied=data_copy.combos_copied,
-                        combos_skipped=data_copy.combos_skipped,
-                        modifiers_copied=data_copy.modifiers_copied,
-                        modifiers_skipped=data_copy.modifiers_skipped,
-                        duplicates_found=data_copy.duplicates_found,
-                        duplicates_skipped=data_copy.duplicates_skipped
-                    ),
-                    skip_duplicates=data_copy.skip_duplicates,
-                    copy_images=data_copy.copy_images,
-                    copy_prices=data_copy.copy_prices,
-                    copy_stock=data_copy.copy_stock,
-                    maintain_relationships=data_copy.maintain_relationships,
-                    error_message=data_copy.error_message,
-                    notes=data_copy.notes,
-                    copied_by=data_copy.copied_by,
-                    created_at=data_copy.created_at,
-                    updated_at=data_copy.updated_at
-                )
-                
-                results.append(response)
-                
-            except Exception as e:
-                logger.error(f"Error copying to restaurant {destination_id}: {str(e)}")
-                # Continue with next destination
-                continue
-        
-        return results
-    
+        data_copy_id: str,
+        source_id: str,
+        entity_type: str,
+        entity_name: str,
+        destination_id: str,
+    ) -> None:
+        await DataCopyService.create_copy_log(
+            db,
+            data_copy_id,
+            source_id,
+            entity_type,
+            entity_name,
+            "success",
+            "copied",
+            destination_id,
+            entity_type,
+        )
+
+    @staticmethod
+    async def create_duplicate_log(
+        db: AsyncSession,
+        data_copy_id: str,
+        source_id: str,
+        entity_type: str,
+        entity_name: str,
+        existing_id: str,
+    ) -> None:
+        await DataCopyService.create_copy_log(
+            db,
+            data_copy_id,
+            source_id,
+            entity_type,
+            entity_name,
+            "skipped",
+            "skipped",
+            is_duplicate=True,
+            duplicate_field="name",
+            duplicate_value=entity_name,
+            existing_entity_id=existing_id,
+        )
+
+    @staticmethod
+    async def create_skipped_log(
+        db: AsyncSession,
+        data_copy_id: str,
+        source_id: str,
+        entity_type: str,
+        entity_name: str,
+        reason: str,
+    ) -> None:
+        await DataCopyService.create_copy_log(
+            db,
+            data_copy_id,
+            source_id,
+            entity_type,
+            entity_name,
+            "skipped",
+            "skipped",
+            error_message=reason,
+        )
+
+    @staticmethod
+    async def create_failure_log(
+        db: AsyncSession,
+        data_copy_id: str,
+        source_id: str,
+        entity_type: str,
+        entity_name: str,
+        exc: Exception,
+    ) -> None:
+        await DataCopyService.create_copy_log(
+            db,
+            data_copy_id,
+            source_id,
+            entity_type,
+            entity_name,
+            "failed",
+            "failed",
+            error_message=str(exc),
+            error_type=type(exc).__name__,
+        )
+
+    @staticmethod
+    def _increment(operation: DataCopy, entity_prefix: str, status: str) -> None:
+        if status == "success":
+            setattr(operation, f"{entity_prefix}_copied", getattr(operation, f"{entity_prefix}_copied") + 1)
+            operation.items_copied += 1
+        elif status == "skipped":
+            setattr(operation, f"{entity_prefix}_skipped", getattr(operation, f"{entity_prefix}_skipped") + 1)
+            operation.items_skipped += 1
+        elif status == "failed":
+            operation.items_failed += 1
+
+    @staticmethod
+    def options_from_operation(operation: DataCopy) -> CopyOptions:
+        metadata = operation.copy_metadata or {}
+        return CopyOptions(
+            skip_duplicates=operation.skip_duplicates,
+            copy_images=operation.copy_images,
+            copy_prices=operation.copy_prices,
+            copy_stock=operation.copy_stock,
+            maintain_relationships=operation.maintain_relationships,
+            include_inactive=bool(metadata.get("include_inactive", False)),
+            include_unavailable=bool(metadata.get("include_unavailable", False)),
+        )
+
+    @staticmethod
+    def _selected_ids(operation: DataCopy, key: str) -> List[str]:
+        if not operation.source_entity_ids:
+            return []
+        value = operation.source_entity_ids.get(key)
+        return value or []
+
+    @staticmethod
+    def _enum_value(value: Any) -> str:
+        return value.value if hasattr(value, "value") else str(value)
+
+    @staticmethod
+    def _normalized_value(value: Any) -> str:
+        raw = DataCopyService._enum_value(value)
+        return raw.lower()
+
+    @staticmethod
+    def to_response(operation: DataCopy) -> DataCopyResponse:
+        return DataCopyResponse(
+            id=operation.id,
+            source_restaurant_id=operation.source_restaurant_id,
+            destination_restaurant_id=operation.destination_restaurant_id,
+            copy_number=operation.copy_number,
+            copy_name=operation.copy_name,
+            copy_type=operation.copy_type,
+            status=operation.status,
+            processing_started_at=operation.processing_started_at,
+            processing_completed_at=operation.processing_completed_at,
+            processing_time=operation.processing_time,
+            statistics=CopyStatistics(
+                total_items=operation.total_items,
+                items_copied=operation.items_copied,
+                items_skipped=operation.items_skipped,
+                items_failed=operation.items_failed,
+                categories_copied=operation.categories_copied,
+                categories_skipped=operation.categories_skipped,
+                products_copied=operation.products_copied,
+                products_skipped=operation.products_skipped,
+                combos_copied=operation.combos_copied,
+                combos_skipped=operation.combos_skipped,
+                modifiers_copied=operation.modifiers_copied,
+                modifiers_skipped=operation.modifiers_skipped,
+                duplicates_found=operation.duplicates_found,
+                duplicates_skipped=operation.duplicates_skipped,
+            ),
+            skip_duplicates=operation.skip_duplicates,
+            copy_images=operation.copy_images,
+            copy_prices=operation.copy_prices,
+            copy_stock=operation.copy_stock,
+            maintain_relationships=operation.maintain_relationships,
+            error_message=operation.error_message,
+            notes=operation.notes,
+            copied_by=operation.copied_by,
+            created_at=operation.created_at,
+            updated_at=operation.updated_at,
+        )
+
     @staticmethod
     async def get_copy_by_id(db: AsyncSession, copy_id: str) -> Optional[DataCopy]:
-        """Get copy operation by ID"""
-        query = select(DataCopy).where(
-            and_(
-                DataCopy.id == copy_id,
-                DataCopy.deleted_at.is_(None)
-            )
+        result = await db.execute(
+            select(DataCopy).where(DataCopy.id == copy_id, DataCopy.deleted_at.is_(None))
         )
-        result = await db.execute(query)
         return result.scalar_one_or_none()
-    
+
     @staticmethod
     async def get_copies(
         db: AsyncSession,
@@ -548,11 +882,10 @@ class DataCopyService:
         source_restaurant_id: Optional[str] = None,
         destination_restaurant_id: Optional[str] = None,
         status: Optional[str] = None,
-        copy_type: Optional[str] = None
+        copy_type: Optional[str] = None,
     ) -> DataCopyListResponse:
-        """Get list of copy operations with pagination"""
         query = select(DataCopy).where(DataCopy.deleted_at.is_(None))
-        
+
         if source_restaurant_id:
             query = query.where(DataCopy.source_restaurant_id == source_restaurant_id)
         if destination_restaurant_id:
@@ -561,68 +894,22 @@ class DataCopyService:
             query = query.where(DataCopy.status == status)
         if copy_type:
             query = query.where(DataCopy.copy_type == copy_type)
-        
-        # Get total count
-        count_query = select(func.count()).select_from(query.subquery())
-        total_result = await db.execute(count_query)
+
+        total_result = await db.execute(select(func.count()).select_from(query.subquery()))
         total = total_result.scalar_one()
-        
-        # Get paginated results
-        query = query.order_by(DataCopy.created_at.desc())
-        query = query.offset((page - 1) * page_size).limit(page_size)
-        result = await db.execute(query)
+
+        result = await db.execute(
+            query.order_by(DataCopy.created_at.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
         copies = result.scalars().all()
-        
-        # Convert to response
-        items = []
-        for copy in copies:
-            items.append(
-                DataCopyResponse(
-                    id=copy.id,
-                    source_restaurant_id=copy.source_restaurant_id,
-                    destination_restaurant_id=copy.destination_restaurant_id,
-                    copy_number=copy.copy_number,
-                    copy_name=copy.copy_name,
-                    copy_type=copy.copy_type,
-                    status=copy.status,
-                    processing_started_at=copy.processing_started_at,
-                    processing_completed_at=copy.processing_completed_at,
-                    processing_time=copy.processing_time,
-                    statistics=CopyStatistics(
-                        total_items=copy.total_items,
-                        items_copied=copy.items_copied,
-                        items_skipped=copy.items_skipped,
-                        items_failed=copy.items_failed,
-                        categories_copied=copy.categories_copied,
-                        categories_skipped=copy.categories_skipped,
-                        products_copied=copy.products_copied,
-                        products_skipped=copy.products_skipped,
-                        combos_copied=copy.combos_copied,
-                        combos_skipped=copy.combos_skipped,
-                        modifiers_copied=copy.modifiers_copied,
-                        modifiers_skipped=copy.modifiers_skipped,
-                        duplicates_found=copy.duplicates_found,
-                        duplicates_skipped=copy.duplicates_skipped
-                    ),
-                    skip_duplicates=copy.skip_duplicates,
-                    copy_images=copy.copy_images,
-                    copy_prices=copy.copy_prices,
-                    copy_stock=copy.copy_stock,
-                    maintain_relationships=copy.maintain_relationships,
-                    error_message=copy.error_message,
-                    notes=copy.notes,
-                    copied_by=copy.copied_by,
-                    created_at=copy.created_at,
-                    updated_at=copy.updated_at
-                )
-            )
-        
         pages = (total + page_size - 1) // page_size
-        
+
         return DataCopyListResponse(
-            items=items,
+            items=[DataCopyService.to_response(copy) for copy in copies],
             total=total,
             page=page,
             page_size=page_size,
-            pages=pages
+            pages=pages,
         )

@@ -1,4 +1,4 @@
-from sqlalchemy import String, Boolean, DateTime, Integer, ForeignKey, Text, Enum as SQLEnum, JSON
+from sqlalchemy import String, Boolean, DateTime, Integer, ForeignKey, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 from datetime import datetime
 from typing import Optional
@@ -50,19 +50,10 @@ class DataCopy(Base):
     # Copy identification
     copy_number: Mapped[str] = mapped_column(String(50), nullable=False, unique=True, index=True)
     copy_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    copy_type: Mapped[str] = mapped_column(
-        SQLEnum(CopyType, native_enum=False, length=30),
-        nullable=False,
-        index=True
-    )
+    copy_type: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
     
     # Status
-    status: Mapped[str] = mapped_column(
-        SQLEnum(CopyStatus, native_enum=False, length=20),
-        default=CopyStatus.PENDING,
-        nullable=False,
-        index=True
-    )
+    status: Mapped[str] = mapped_column(String(20), default=CopyStatus.PENDING.value, nullable=False, index=True)
     
     # Processing information
     processing_started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
@@ -193,11 +184,7 @@ class CopyTemplate(Base):
     # Template information
     template_name: Mapped[str] = mapped_column(String(255), nullable=False)
     template_description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    copy_type: Mapped[str] = mapped_column(
-        SQLEnum(CopyType, native_enum=False, length=30),
-        nullable=False,
-        index=True
-    )
+    copy_type: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
     
     # Copy settings
     skip_duplicates: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

@@ -17,3 +17,5 @@ xlrd==2.0.1
 pytz==2024.1
 minio==7.2.12
 Pillow==10.4.0
+celery==5.3.6
+redis==5.0.1
