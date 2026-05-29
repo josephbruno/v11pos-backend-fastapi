@@ -9,7 +9,8 @@ from datetime import datetime, timezone
 engine = create_async_engine(
     settings.database_url,
     echo=settings.is_development,  # Log SQL queries in development
-    pool_pre_ping=True,  # Verify connections before using
+    pool_pre_ping=False,  # aiomysql 0.2.0 ping signature is incompatible with SQLAlchemy pre-ping
+    pool_recycle=1800,  # Recycle remote MySQL connections before common idle timeouts
     pool_size=10,
     max_overflow=20
 )
