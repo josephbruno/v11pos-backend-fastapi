@@ -2,6 +2,8 @@
 Cart API routes: staff or customer JWT (`get_cart_auth_context`).
 """
 
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,6 +22,7 @@ from app.modules.cart.schema import (
 from app.modules.cart.service import CartService, CartValidationError
 from app.modules.order.schema import OrderItemResponse, OrderResponse
 from app.modules.order.service import OrderService
+from app.modules.order.websocket import order_ws_manager
 
 
 router = APIRouter(prefix="/carts", tags=["Cart"])
@@ -139,6 +142,21 @@ async def checkout_cart(
         items = await OrderService.get_order_items(db, order.id)
         order_response = OrderResponse.model_validate(order)
         order_response.items = [OrderItemResponse.model_validate(item) for item in items]
+
+        try:
+            await order_ws_manager.broadcast(
+                str(order.restaurant_id),
+                {
+                    "type": "order_created",
+                    "restaurant_id": str(order.restaurant_id),
+                    "order_id": str(order.id),
+                    "order": order_response.model_dump(),
+                    "timestamp": datetime.utcnow().isoformat(),
+                },
+            )
+        except Exception:
+            pass
+
         return success_response(
             message="Order created from cart successfully",
             data=order_response,
