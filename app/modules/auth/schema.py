@@ -43,6 +43,19 @@ class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
 
+class VerifyOTPRequest(BaseModel):
+    """Schema for OTP verification (optional pre-check before reset)"""
+    email: EmailStr
+    otp: str
+
+
+class ResetPasswordRequest(BaseModel):
+    """Schema for password reset with OTP"""
+    email: EmailStr
+    otp: str
+    new_password: str
+
+
 class LoginLogCreate(BaseModel):
     """Schema for creating login log"""
     email: str

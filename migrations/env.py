@@ -11,7 +11,7 @@ from app.core.config import settings
 
 # Import all models to ensure they're registered with Base
 from app.modules.user.model import User
-from app.modules.auth.model import LoginLog
+from app.modules.auth.model import LoginLog, PasswordResetOTP
 from app.modules.customer.model import Customer
 from app.modules.table.model import Table
 from app.modules.order.model import Order, OrderItem
@@ -80,6 +80,7 @@ from app.modules.row_management.model import RowManagement
 from app.modules.cart.model import Cart, CartItem, CartItemModifierOption
 from app.modules.payment.model import OrderPayment
 from app.modules.payment_gateway.model import PaymentGateway
+from app.modules.table_session.model import TableSession, TableTransfer
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

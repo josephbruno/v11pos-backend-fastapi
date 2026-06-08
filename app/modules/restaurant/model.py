@@ -316,6 +316,10 @@ class SubscriptionPlan(Base):
     
     # Trial
     trial_days: Mapped[int] = mapped_column(Integer, default=14, nullable=False)
+
+    # Razorpay plan IDs (synced when plan is created/updated)
+    razorpay_plan_id_monthly: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    razorpay_plan_id_yearly: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     
     # Metadata
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)

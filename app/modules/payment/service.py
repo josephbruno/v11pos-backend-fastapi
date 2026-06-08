@@ -78,6 +78,31 @@ class OrderPaymentService:
         return row
 
     @staticmethod
+    async def mark_order_payments_paid(
+        db: AsyncSession,
+        order_id: str,
+        *,
+        payment_method: Optional[str] = None,
+        paid_amount: Optional[int] = None,
+    ) -> None:
+        """Sync pending payment rows when order payment is collected at POS."""
+        rows = await OrderPaymentService.list_for_order(db, order_id)
+        pending = [r for r in rows if r.payment_status == PaymentStatus.PENDING]
+        if not pending:
+            return
+        amount_per_row = paid_amount
+        if amount_per_row is None and len(pending) == 1:
+            amount_per_row = pending[0].amount
+        for row in pending:
+            if payment_method:
+                row.payment_method = payment_method
+            if amount_per_row is not None:
+                row.amount = amount_per_row
+            row.payment_status = PaymentStatus.PAID
+            db.add(row)
+        await db.flush()
+
+    @staticmethod
     async def update_payment(
         db: AsyncSession,
         payment_id: str,

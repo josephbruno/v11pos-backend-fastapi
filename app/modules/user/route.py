@@ -49,8 +49,20 @@ async def create_user(
                 error_code="USERNAME_EXISTS",
                 error_details="Username already exists"
             )
+
+        if user_data.restaurant_id:
+            from app.modules.restaurant.enforcement import SubscriptionEnforcementService
+            from app.modules.restaurant.service import RestaurantService
+
+            await SubscriptionEnforcementService.assert_within_limit(
+                db, user_data.restaurant_id, "users"
+            )
         
         user = await UserService.create_user(db, user_data)
+
+        if user_data.restaurant_id:
+            from app.modules.restaurant.service import RestaurantService
+            await RestaurantService.increment_usage(db, user_data.restaurant_id, "users")
         
         return success_response(
             message="User created successfully",
@@ -63,6 +75,8 @@ async def create_user(
             error_code="INTEGRITY_ERROR",
             error_details="Email or username already exists"
         )
+    except HTTPException:
+        raise
     except Exception as e:
         return error_response(
             message="User creation failed",

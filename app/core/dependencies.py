@@ -113,6 +113,18 @@ async def get_current_active_user(
     return current_user
 
 
+async def get_current_platform_admin(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """Superadmin or legacy superuser — platform-level billing/plan management."""
+    if not (current_user.is_superadmin or current_user.is_superuser):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. Platform admin privileges required.",
+        )
+    return current_user
+
+
 async def get_current_superadmin(
     current_user: User = Depends(get_current_user)
 ) -> User:
@@ -327,3 +339,48 @@ async def get_cart_auth_context(
     user.country = row[4] or "India"
 
     return CartAuthContext(staff_user=user)
+
+
+RESTAURANT_ADMIN_ROLES = frozenset({"owner", "admin", "manager", "co_owner"})
+
+
+async def is_restaurant_admin(
+    db: AsyncSession,
+    user: User,
+    restaurant_id: str,
+) -> bool:
+    """True if user may manage restaurant billing/subscription."""
+    if user.is_superadmin or user.is_superuser:
+        return True
+
+    from app.modules.restaurant.model import RestaurantOwner
+
+    owner_result = await db.execute(
+        select(RestaurantOwner).where(
+            RestaurantOwner.restaurant_id == restaurant_id,
+            RestaurantOwner.user_id == user.id,
+            RestaurantOwner.is_active == True,
+        )
+    )
+    owner = owner_result.scalar_one_or_none()
+    if owner and owner.role in RESTAURANT_ADMIN_ROLES:
+        return True
+
+    if user.restaurant_id == restaurant_id and user.role in RESTAURANT_ADMIN_ROLES:
+        return True
+
+    return False
+
+
+async def require_restaurant_admin(
+    restaurant_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    """Dependency factory — use via partial or inline check in routes."""
+    if not await is_restaurant_admin(db, current_user, restaurant_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. Restaurant admin privileges required.",
+        )
+    return current_user

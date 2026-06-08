@@ -25,11 +25,32 @@ from app.modules.customer_auth.schema import (
     CustomerEmailOTPRequestResponse,
     CustomerEmailOTPVerify,
     CustomerGoogleLoginRequest,
+    CustomerPhonePeInitRequest,
     CustomerRefreshTokenRequest,
+    CustomerTablePaymentRequest,
+)
+from app.modules.customer_auth.payments import (
+    CustomerPaymentError,
+    init_phonepe_payment,
+    phonepe_payment_status,
+    record_table_payment,
 )
 from app.modules.customer_auth.service import CustomerAuthError, CustomerAuthService, send_customer_email_otp
 from app.core.dependencies import get_current_customer
 from app.modules.customer.model import Customer
+from app.modules.table_session.schema import (
+    RequestBillPayload,
+    TableSessionCreate,
+    TableSessionResponse,
+    TableTransferCreate,
+    TableTransferResponse,
+)
+from app.modules.table.service import TableService
+from app.modules.table_session.service import (
+    TableSessionError,
+    TableSessionService,
+    TableTransferService,
+)
 
 
 router = APIRouter(prefix="/customer-auth", tags=["Customer Authentication"])
@@ -390,3 +411,215 @@ async def get_my_order(
         message="Order retrieved successfully",
         data=order_response.model_dump(),
     )
+
+
+@router.post("/table-sessions", response_model=None)
+async def create_table_session(
+    payload: TableSessionCreate,
+    customer: Customer = Depends(get_current_customer),
+    db: AsyncSession = Depends(get_db),
+):
+    if payload.customer_uuid != customer.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Customer mismatch")
+    if payload.restaurant_uuid != customer.restaurant_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Restaurant mismatch")
+    try:
+        session, table = await TableSessionService.create_or_restore_session(db, payload)
+        active_order = await TableSessionService.get_active_order_for_table(
+            db, customer.id, customer.restaurant_id, session.table_id
+        )
+        if active_order and not session.active_order_id:
+            session.active_order_id = active_order.id
+            await db.commit()
+            await db.refresh(session)
+        resp = TableSessionResponse(
+            id=session.id,
+            table_uuid=session.table_id,
+            restaurant_uuid=session.restaurant_id,
+            customer_uuid=session.customer_id,
+            active_order_uuid=session.active_order_id,
+            status=session.status.upper(),
+            started_at=session.started_at,
+            closed_at=session.closed_at,
+            table_number=table.table_number,
+            table_name=table.table_name,
+        )
+        return success_response(message="Table session started", data={"session": resp.model_dump()})
+    except TableSessionError as e:
+        return error_response(message=e.message, error_code=e.code, status_code=e.status_code)
+
+
+@router.get("/table-sessions/active", response_model=None)
+async def get_active_table_session(
+    customer: Customer = Depends(get_current_customer),
+    db: AsyncSession = Depends(get_db),
+):
+    session = await TableSessionService.get_active_session_for_customer(
+        db, customer.id, customer.restaurant_id
+    )
+    if not session:
+        return success_response(message="No active session", data={"session": None})
+    table = await TableService.get_table_by_id(db, session.table_id)
+    resp = TableSessionResponse(
+        id=session.id,
+        table_uuid=session.table_id,
+        restaurant_uuid=session.restaurant_id,
+        customer_uuid=session.customer_id,
+        active_order_uuid=session.active_order_id,
+        status=session.status.upper(),
+        started_at=session.started_at,
+        closed_at=session.closed_at,
+        table_number=table.table_number if table else None,
+        table_name=table.table_name if table else None,
+    )
+    return success_response(message="Active session retrieved", data={"session": resp.model_dump()})
+
+
+@router.delete("/table-sessions/active", response_model=None)
+async def close_active_table_session(
+    customer: Customer = Depends(get_current_customer),
+    db: AsyncSession = Depends(get_db),
+):
+    session = await TableSessionService.get_active_session_for_customer(
+        db, customer.id, customer.restaurant_id
+    )
+    if not session:
+        return success_response(message="No active session", data={"closed": False})
+    ok = await TableSessionService.close_session(db, session.id, customer.id, customer.restaurant_id)
+    return success_response(message="Session closed", data={"closed": ok})
+
+
+@router.post("/table-transfers", response_model=None)
+async def request_table_transfer(
+    payload: TableTransferCreate,
+    customer: Customer = Depends(get_current_customer),
+    db: AsyncSession = Depends(get_db),
+):
+    if payload.customer_uuid != customer.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Customer mismatch")
+    if payload.restaurant_uuid != customer.restaurant_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Restaurant mismatch")
+    try:
+        transfer = await TableTransferService.create_transfer(db, payload)
+        resp = TableTransferResponse(
+            id=transfer.id,
+            old_table_uuid=transfer.old_table_id,
+            new_table_uuid=transfer.new_table_id,
+            customer_uuid=transfer.customer_id,
+            restaurant_uuid=transfer.restaurant_id,
+            order_uuid=transfer.order_id,
+            status=transfer.status.upper(),
+            resolved_by=transfer.resolved_by,
+            resolved_at=transfer.resolved_at,
+            audit_log=transfer.audit_log,
+            created_at=transfer.created_at,
+        )
+        return success_response(message="Transfer requested", data={"transfer": resp.model_dump()})
+    except TableSessionError as e:
+        return error_response(message=e.message, error_code=e.code, status_code=e.status_code)
+
+
+@router.get("/table-transfers/{transfer_id}", response_model=None)
+async def get_table_transfer_status(
+    transfer_id: str,
+    customer: Customer = Depends(get_current_customer),
+    db: AsyncSession = Depends(get_db),
+):
+    transfer = await TableTransferService.get_transfer_by_id(db, transfer_id)
+    if not transfer or transfer.customer_id != customer.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transfer not found")
+    resp = TableTransferResponse(
+        id=transfer.id,
+        old_table_uuid=transfer.old_table_id,
+        new_table_uuid=transfer.new_table_id,
+        customer_uuid=transfer.customer_id,
+        restaurant_uuid=transfer.restaurant_id,
+        order_uuid=transfer.order_id,
+        status=transfer.status.upper(),
+        resolved_by=transfer.resolved_by,
+        resolved_at=transfer.resolved_at,
+        audit_log=transfer.audit_log,
+        created_at=transfer.created_at,
+    )
+    return success_response(message="Transfer retrieved", data={"transfer": resp.model_dump()})
+
+
+@router.post("/orders/{order_id}/request-bill", response_model=None)
+async def request_order_bill(
+    order_id: str,
+    payload: RequestBillPayload,
+    customer: Customer = Depends(get_current_customer),
+    db: AsyncSession = Depends(get_db),
+):
+    if payload.customer_uuid != customer.id or payload.order_uuid != order_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Order mismatch")
+    try:
+        order = await TableSessionService.request_bill(
+            db, order_id, customer.id, customer.restaurant_id, payload.table_uuid
+        )
+        bill = TableSessionService.build_bill_summary(order)
+        return success_response(message="Bill requested", data={"bill": bill})
+    except TableSessionError as e:
+        return error_response(message=e.message, error_code=e.code, status_code=e.status_code)
+
+
+@router.get("/orders/{order_id}/bill", response_model=None)
+async def get_order_bill(
+    order_id: str,
+    customer: Customer = Depends(get_current_customer),
+    db: AsyncSession = Depends(get_db),
+):
+    order = await OrderService.get_order_for_customer(
+        db, order_id, customer.id, customer.restaurant_id
+    )
+    if not order:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+    bill = TableSessionService.build_bill_summary(order)
+    return success_response(message="Bill summary retrieved", data={"bill": bill})
+
+
+@router.post("/payments/phonepe/init", response_model=None)
+async def customer_phonepe_init(
+    payload: CustomerPhonePeInitRequest,
+    customer: Customer = Depends(get_current_customer),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        data = await init_phonepe_payment(db, customer, payload.model_dump())
+        return success_response(message="PhonePe payment initiated", data=data)
+    except CustomerPaymentError as e:
+        return error_response(message=e.message, error_code=e.code, status_code=e.status_code)
+
+
+@router.get("/payments/phonepe/status/{merchant_transaction_id}", response_model=None)
+async def customer_phonepe_status(
+    merchant_transaction_id: str,
+    customer: Customer = Depends(get_current_customer),
+):
+    data = await phonepe_payment_status(merchant_transaction_id, customer)
+    if not data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    return success_response(message="PhonePe payment status", data=data)
+
+
+@router.post("/orders/{order_id}/table-payment", response_model=None)
+async def customer_table_payment(
+    order_id: str,
+    payload: CustomerTablePaymentRequest,
+    customer: Customer = Depends(get_current_customer),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        order = await record_table_payment(
+            db,
+            customer,
+            order_id,
+            payload.payment_method,
+            mark_paid=payload.mark_paid,
+        )
+        return success_response(
+            message="Payment method recorded",
+            data={"order_id": order.id, "payment_status": order.payment_status, "payment_method": order.payment_method},
+        )
+    except CustomerPaymentError as e:
+        return error_response(message=e.message, error_code=e.code, status_code=e.status_code)

@@ -53,6 +53,7 @@ class OrderService:
         created_by: Optional[str] = None,
         *,
         commit: bool = True,
+        initial_status: Optional[OrderStatus] = None,
     ) -> Order:
         """
         Create a new order with items
@@ -100,7 +101,7 @@ class OrderService:
             source_details=order_data.source_details,
             is_priority=order_data.is_priority,
             requires_cutlery=order_data.requires_cutlery,
-            status=OrderStatus.PENDING,
+            status=initial_status or OrderStatus.PENDING,
             payment_status=PaymentStatus.PENDING,
         )
         
@@ -587,5 +588,8 @@ class OrderService:
             "total_orders": total,
             **statuses,
             "total_revenue": total_revenue,
-            "average_order_value": avg_value
+            "average_order_value": avg_value,
+            # Frontend compatibility aliases
+            "avg_order_value": avg_value,
+            "delivered_orders": statuses.get("completed_orders", 0),
         }

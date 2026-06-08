@@ -23,6 +23,7 @@ class OrderType(str, enum.Enum):
 
 class OrderStatus(str, enum.Enum):
     """Order status enumeration"""
+    PENDING_APPROVAL = "pending_approval"  # QR table order awaiting waiter/cashier
     PENDING = "pending"              # Order placed, awaiting confirmation
     CONFIRMED = "confirmed"          # Order confirmed
     PREPARING = "preparing"          # Kitchen preparing

@@ -141,4 +141,8 @@ class CartCheckoutRequest(BaseModel):
     source_details: Optional[Dict[str, Any]] = None
     is_priority: bool = False
     requires_cutlery: bool = True
+    append_to_order_id: Optional[str] = Field(
+        None,
+        description="When set, append cart items to this existing order instead of creating a new one",
+    )
 

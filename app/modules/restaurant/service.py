@@ -25,7 +25,7 @@ from app.modules.restaurant.schema import (
     SubscriptionCreate,
     SubscriptionUpdate,
     InvoiceCreate,
-    RestaurantInvitationCreate
+    RestaurantInvitationCreate,
 )
 
 
@@ -82,6 +82,14 @@ class RestaurantService:
         
         db.add(restaurant)
         await db.flush()
+
+        trial_plan = await SubscriptionPlanService.get_plan_by_name(db, SubscriptionPlanType.TRIAL.value)
+        if trial_plan:
+            restaurant.max_users = trial_plan.max_users
+            restaurant.max_products = trial_plan.max_products
+            restaurant.max_orders_per_month = trial_plan.max_orders_per_month
+            restaurant.max_locations = trial_plan.max_locations
+            restaurant.features = trial_plan.features
         
         # Create owner relationship
         owner = RestaurantOwner(
@@ -275,6 +283,21 @@ class SubscriptionPlanService:
             .order_by(SubscriptionPlan.sort_order)
         )
         return list(result.scalars().all())
+
+    @staticmethod
+    async def get_all_plans(db: AsyncSession) -> List[SubscriptionPlan]:
+        """Get all plans including inactive (superadmin)."""
+        result = await db.execute(
+            select(SubscriptionPlan).order_by(SubscriptionPlan.sort_order)
+        )
+        return list(result.scalars().all())
+
+    @staticmethod
+    async def get_plan_by_id(db: AsyncSession, plan_id: str) -> Optional[SubscriptionPlan]:
+        result = await db.execute(
+            select(SubscriptionPlan).where(SubscriptionPlan.id == plan_id)
+        )
+        return result.scalar_one_or_none()
     
     @staticmethod
     async def update_plan(
@@ -339,8 +362,32 @@ class SubscriptionService:
         db.add(subscription)
         await db.commit()
         await db.refresh(subscription)
+
+        from app.modules.billing.service import BillingService
+
+        restaurant = await RestaurantService.get_restaurant_by_id(db, subscription_data.restaurant_id)
+        if restaurant:
+            await BillingService.sync_restaurant_from_plan(
+                db, restaurant, plan, subscription, SubscriptionStatus.ACTIVE
+            )
         
         return subscription
+
+    @staticmethod
+    async def list_subscriptions(
+        db: AsyncSession,
+        status_filter: Optional[SubscriptionStatus] = None,
+        plan_filter: Optional[SubscriptionPlanType] = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[Subscription]:
+        query = select(Subscription).order_by(Subscription.created_at.desc())
+        if status_filter:
+            query = query.where(Subscription.status == status_filter)
+        if plan_filter:
+            query = query.where(Subscription.plan == plan_filter)
+        result = await db.execute(query.offset(skip).limit(limit))
+        return list(result.scalars().all())
     
     @staticmethod
     async def get_active_subscription(
@@ -386,11 +433,28 @@ class SubscriptionService:
         
         subscription.cancellation_reason = reason
         subscription.cancelled_by = user_id
+
+        from app.modules.billing.service import BillingService
+
+        await BillingService.cancel_razorpay_if_needed(db, subscription, immediate)
+
+        if immediate:
+            restaurant = await RestaurantService.get_restaurant_by_id(db, subscription.restaurant_id)
+            if restaurant:
+                restaurant.subscription_status = SubscriptionStatus.CANCELLED
+                restaurant.is_suspended = True
         
         await db.commit()
         await db.refresh(subscription)
         
         return subscription
+
+    @staticmethod
+    async def get_subscription_by_id(db: AsyncSession, subscription_id: str) -> Optional[Subscription]:
+        result = await db.execute(
+            select(Subscription).where(Subscription.id == subscription_id)
+        )
+        return result.scalar_one_or_none()
 
 
 class InvoiceService:

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Body, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
 from datetime import datetime
@@ -14,9 +14,12 @@ from app.modules.order.schema import (
     OrderItemResponse,
     OrderStatusUpdate,
     OrderPaymentUpdate,
+    OrderCancelRequest,
     OrderAddItems,
     OrderStatistics
 )
+from app.modules.order.model import PaymentMethod
+from app.modules.payment.service import OrderPaymentService
 from app.modules.order.model import OrderType, OrderStatus, PaymentStatus
 from app.modules.order.service import OrderService
 from app.modules.order.websocket import order_ws_manager
@@ -71,7 +74,14 @@ async def create_order(
     - **scheduled_for**: Schedule order for future time
     """
     try:
+        from app.modules.restaurant.enforcement import SubscriptionEnforcementService
+        from app.modules.restaurant.service import RestaurantService
+
+        await SubscriptionEnforcementService.assert_within_limit(
+            db, order_data.restaurant_id, "orders"
+        )
         order = await OrderService.create_order(db, order_data, created_by=current_user.id)
+        await RestaurantService.increment_usage(db, order_data.restaurant_id, "orders")
         
         # Load items for response
         items = await OrderService.get_order_items(db, order.id)
@@ -97,6 +107,8 @@ async def create_order(
             data=order_response,
             message="Order created successfully"
         )
+    except HTTPException:
+        raise
     except Exception as e:
         return error_response(
             message="Failed to create order",
@@ -349,13 +361,26 @@ async def update_order_payment(
     - **paid_amount**: Amount paid
     - **payment_details**: Additional payment details (transaction ID, etc.)
     """
+    existing = await OrderService.get_order_by_id(db, order_id)
+    if not existing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found"
+        )
+
+    paid_amount = payment_data.paid_amount
+    if paid_amount is None and payment_data.payment_status == PaymentStatus.PAID:
+        paid_amount = existing.total_amount
+
+    payment_method = payment_data.payment_method or PaymentMethod.CASH
+
     order = await OrderService.update_order(
         db,
         order_id,
         OrderUpdate(
-            payment_method=payment_data.payment_method,
+            payment_method=payment_method,
             payment_status=payment_data.payment_status,
-            paid_amount=payment_data.paid_amount
+            paid_amount=paid_amount if paid_amount is not None else existing.paid_amount,
         )
     )
     
@@ -369,8 +394,17 @@ async def update_order_payment(
     if payment_data.payment_details:
         order.payment_details = payment_data.payment_details
         db.add(order)
-        await db.commit()
-        await db.refresh(order)
+
+    if payment_data.payment_status == PaymentStatus.PAID:
+        await OrderPaymentService.mark_order_payments_paid(
+            db,
+            order_id,
+            payment_method=payment_method.value if payment_method else None,
+            paid_amount=paid_amount,
+        )
+
+    await db.commit()
+    await db.refresh(order)
     
     # Load items
     items = await OrderService.get_order_items(db, order_id)
@@ -461,6 +495,7 @@ async def delete_order_item(
 async def cancel_order(
     order_id: str,
     reason: Optional[str] = Query(None, description="Cancellation reason"),
+    body: Optional[OrderCancelRequest] = Body(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -468,9 +503,10 @@ async def cancel_order(
     Cancel an order
     
     - **order_id**: Order ID
-    - **reason**: Optional cancellation reason
+    - **reason**: Optional cancellation reason (query param or JSON body)
     """
-    order = await OrderService.cancel_order(db, order_id, reason)
+    cancel_reason = reason or (body.reason if body else None)
+    order = await OrderService.cancel_order(db, order_id, cancel_reason)
     
     if not order:
         raise HTTPException(

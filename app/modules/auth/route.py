@@ -9,9 +9,11 @@ from app.modules.auth.schema import (
     TokenResponse,
     RefreshTokenRequest,
     ForgotPasswordRequest,
+    VerifyOTPRequest,
+    ResetPasswordRequest,
     LoginLogResponse
 )
-from app.modules.auth.service import AuthService, LoginLogService
+from app.modules.auth.service import AuthService, LoginLogService, PasswordResetService, send_password_reset_email
 from app.modules.user.model import User
 from app.modules.user.service import UserService
 
@@ -226,49 +228,110 @@ async def forgot_password(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Request password reset (logs the attempt)
-    
-    - **email**: User email
-    
-    Note: This endpoint always returns success for security reasons,
-    but logs the attempt for tracking purposes.
+    Request a 6-digit password reset OTP. The OTP is emailed to the user.
+    Returns 404 if the email is not registered.
     """
     try:
-        # Check if the email exists before proceeding
         user = await UserService.get_user_by_email(db, forgot_data.email)
         if not user:
             return error_response(
                 message="Email not found",
                 error_code="USER_NOT_FOUND",
-                error_details=f"User with email {forgot_data.email} does not exist",
+                error_details=f"No account found with email {forgot_data.email}",
                 status_code=status.HTTP_404_NOT_FOUND
             )
 
-        # Extract request metadata
         ip_address = get_client_ip(request)
+
+        try:
+            otp, expires_in = await PasswordResetService.create_otp(
+                db, forgot_data.email, ip_address=ip_address
+            )
+        except ValueError as ve:
+            return error_response(
+                message=str(ve),
+                error_code="OTP_RATE_LIMIT",
+                status_code=429
+            )
+
+        user_name = getattr(user, "full_name", None) or getattr(user, "name", None) or forgot_data.email.split("@")[0]
+        await send_password_reset_email(forgot_data.email, user_name, otp)
+
+        # Also log the forgot-password attempt
         user_agent = request.headers.get("User-Agent", "unknown")
         device_type = get_device_type(user_agent)
         parsed_ua = parse_user_agent(user_agent)
-        
-        # Log the forgot password attempt
         await AuthService.log_forgot_password(
-            db,
-            forgot_data.email,
+            db, forgot_data.email,
             ip_address=ip_address,
             device_type=device_type,
             user_agent=user_agent,
             browser=parsed_ua["browser"],
             operating_system=parsed_ua["operating_system"]
         )
-        
-        # Always return success for security (don't reveal if email exists)
+
         return success_response(
-            message="If the email exists, a password reset link has been sent",
-            data={"email": forgot_data.email}
+            message="OTP has been sent to your email address",
+            data={"email": forgot_data.email, "expires_in": expires_in}
         )
     except Exception as e:
         return error_response(
             message="Request failed",
+            error_code="INTERNAL_ERROR",
+            error_details=str(e)
+        )
+
+
+@router.post("/verify-otp", response_model=None)
+async def verify_otp(
+    body: VerifyOTPRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Pre-validate OTP before the user submits a new password.
+    Does NOT consume the OTP — call /reset-password to finalize.
+    """
+    try:
+        await PasswordResetService.verify_otp(db, body.email, body.otp)
+        return success_response(message="OTP is valid", data={"valid": True})
+    except ValueError as ve:
+        return error_response(
+            message=str(ve),
+            error_code="INVALID_OTP",
+            status_code=status.HTTP_400_BAD_REQUEST
+        )
+    except Exception as e:
+        return error_response(
+            message="Verification failed",
+            error_code="INTERNAL_ERROR",
+            error_details=str(e)
+        )
+
+
+@router.post("/reset-password", response_model=None)
+async def reset_password(
+    body: ResetPasswordRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Verify OTP and reset the user's password in one step.
+    Consumes the OTP — it cannot be reused.
+    """
+    try:
+        await PasswordResetService.reset_password(db, body.email, body.otp, body.new_password)
+        return success_response(
+            message="Password has been reset successfully",
+            data={"email": body.email}
+        )
+    except ValueError as ve:
+        return error_response(
+            message=str(ve),
+            error_code="RESET_FAILED",
+            status_code=status.HTTP_400_BAD_REQUEST
+        )
+    except Exception as e:
+        return error_response(
+            message="Password reset failed",
             error_code="INTERNAL_ERROR",
             error_details=str(e)
         )

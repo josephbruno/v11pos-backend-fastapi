@@ -427,7 +427,17 @@ async def create_product(
             data["image"] = image_url
 
         product_data = ProductCreate(**data)
+        if product_data.restaurant_id:
+            from app.modules.restaurant.enforcement import SubscriptionEnforcementService
+            from app.modules.restaurant.service import RestaurantService
+
+            await SubscriptionEnforcementService.assert_within_limit(
+                db, product_data.restaurant_id, "products"
+            )
         product = await ProductService.create_product(db, product_data)
+        if product_data.restaurant_id:
+            from app.modules.restaurant.service import RestaurantService
+            await RestaurantService.increment_usage(db, product_data.restaurant_id, "products")
         return success_response(
             message="Product created successfully",
             data=ProductResponse.model_validate(product).model_dump()
@@ -439,6 +449,8 @@ async def create_product(
             error_details=str(e),
             status_code=status.HTTP_400_BAD_REQUEST
         )
+    except HTTPException:
+        raise
     except Exception as e:
         return error_response(
             message="Failed to create product",
@@ -454,23 +466,54 @@ async def get_products(
     available_only: bool = False,
     featured_only: bool = False,
     search: Optional[str] = None,
-    skip: int = 0,
-    limit: int = 100,
+    page: int = 1,
+    page_size: int = 12,
     db: AsyncSession = Depends(get_db)
 ):
-    """Get products for a restaurant"""
+    """Get products for a restaurant with pagination"""
     try:
-        products = await ProductService.get_products_by_restaurant(
-            db, restaurant_id, category_id, available_only,
-            featured_only, search, skip, limit
-        )
-        products_data = [
-            ProductResponse.model_validate(p).model_dump()
-            for p in products
-        ]
+        from sqlalchemy import select, func, or_
+        from app.modules.product.model import Product as ProductModel
+
+        base_query = select(ProductModel).where(ProductModel.restaurant_id == restaurant_id)
+        if category_id:
+            base_query = base_query.where(ProductModel.category_id == category_id)
+        if available_only:
+            base_query = base_query.where(ProductModel.available == True)
+        if featured_only:
+            base_query = base_query.where(ProductModel.featured == True)
+        if search:
+            base_query = base_query.where(
+                or_(
+                    ProductModel.name.ilike(f"%{search}%"),
+                    ProductModel.description.ilike(f"%{search}%"),
+                )
+            )
+
+        count_result = await db.execute(select(func.count()).select_from(base_query.subquery()))
+        total_items = count_result.scalar() or 0
+
+        skip = (page - 1) * page_size
+        data_query = base_query.order_by(ProductModel.name).offset(skip).limit(page_size)
+        result = await db.execute(data_query)
+        products = list(result.scalars().all())
+
+        products_data = [ProductResponse.model_validate(p).model_dump() for p in products]
+        total_pages = max(1, (total_items + page_size - 1) // page_size)
+
         return success_response(
             message="Products retrieved successfully",
-            data=products_data
+            data={
+                "items": products_data,
+                "pagination": {
+                    "page": page,
+                    "page_size": page_size,
+                    "total_items": total_items,
+                    "total_pages": total_pages,
+                    "has_previous": page > 1,
+                    "has_next": page < total_pages,
+                },
+            },
         )
     except Exception as e:
         return error_response(

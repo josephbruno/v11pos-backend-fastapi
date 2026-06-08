@@ -391,17 +391,67 @@ class CartService:
             else:
                 raise CartValidationError("Unsupported cart line type", field="item_type")
 
-        fields = checkout.model_dump()
-        if not fields.get("source"):
-            fields["source"] = "cart"
-        order_data = OrderCreate(
-            restaurant_id=restaurant_id,
-            customer_id=customer_id,
-            items=order_items,
-            **fields,
-        )
+        from app.modules.table_session.service import TableSessionService
+        from app.modules.order.model import OrderStatus
 
-        order = await OrderService.create_order(db, order_data, created_by=created_by, commit=False)
+        append_to_order_id = checkout.append_to_order_id
+        is_qr_table = (checkout.source or "").lower() == "qr_table" and bool(checkout.table_id)
+
+        if append_to_order_id:
+            existing = await OrderService.get_order_for_customer(
+                db, append_to_order_id, customer_id, restaurant_id
+            )
+            if not existing:
+                raise CartValidationError("Order to append not found", field="append_to_order_id")
+            if str(existing.status) == OrderStatus.PENDING_APPROVAL.value:
+                raise CartValidationError(
+                    "Order is awaiting staff approval before items can be added",
+                    field="append_to_order_id",
+                )
+            if not TableSessionService.is_order_editable(existing):
+                raise CartValidationError("Order is locked and cannot accept new items", field="append_to_order_id")
+
+            order = await OrderService.add_items_to_order(db, append_to_order_id, order_items)
+            if not order:
+                raise CartValidationError("Failed to append items to order", field="append_to_order_id")
+        else:
+            if is_qr_table:
+                pending = await TableSessionService.get_active_order_for_table(
+                    db, customer_id, restaurant_id, checkout.table_id  # type: ignore[arg-type]
+                )
+                if pending and str(pending.status) == OrderStatus.PENDING_APPROVAL.value:
+                    raise CartValidationError(
+                        "An order is already awaiting staff approval for this table",
+                        field="table_id",
+                    )
+
+            fields = checkout.model_dump(exclude={"append_to_order_id"})
+            if not fields.get("source"):
+                fields["source"] = "cart"
+            order_data = OrderCreate(
+                restaurant_id=restaurant_id,
+                customer_id=customer_id,
+                items=order_items,
+                **fields,
+            )
+            initial_status = (
+                OrderStatus.PENDING_APPROVAL if is_qr_table else OrderStatus.PENDING
+            )
+            order = await OrderService.create_order(
+                db,
+                order_data,
+                created_by=created_by,
+                commit=False,
+                initial_status=initial_status,
+            )
+
+            if checkout.table_id:
+                from app.modules.table_session.service import TableSessionService as TSS
+
+                await TSS.set_active_order(
+                    db, customer_id, restaurant_id, checkout.table_id, order.id
+                )
+
         cart.status = CartStatus.ORDERED
         cart.is_active = False
         await db.commit()

@@ -457,10 +457,36 @@ class SubscriptionPlanResponse(BaseModel):
     sort_order: int
     badge: Optional[str]
     trial_days: int
+    razorpay_plan_id_monthly: Optional[str] = None
+    razorpay_plan_id_yearly: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     
     model_config = ConfigDict(from_attributes=True)
+
+
+class SubscriptionCheckoutRequest(BaseModel):
+    """Start Razorpay subscription checkout."""
+    plan_id: str
+    billing_cycle: str = Field(default="monthly", pattern="^(monthly|yearly)$")
+
+
+class SubscriptionVerifyRequest(BaseModel):
+    """Verify Razorpay subscription after checkout."""
+    razorpay_subscription_id: str
+
+
+class SubscriptionAssignRequest(BaseModel):
+    """Superadmin manual plan assignment."""
+    plan_name: str
+    billing_cycle: str = "monthly"
+
+
+class RestaurantSubscriptionStatusUpdate(BaseModel):
+    """Superadmin suspend/reactivate restaurant subscription."""
+    subscription_status: SubscriptionStatus
+    is_suspended: bool = False
+    suspension_reason: Optional[str] = None
 
 
 # Subscription Schemas

@@ -33,6 +33,7 @@ from app.modules.restaurant.service import RestaurantService
 from app.modules.table.model import TableStatus
 from app.modules.table.schema import TableResponse
 from app.modules.table.service import TableService
+from app.modules.table_session.service import TableSessionService
 
 
 router = APIRouter(prefix="/open", tags=["Open Fetch"])
@@ -184,6 +185,27 @@ async def fetch_row_management(
     except Exception as e:
         return error_response(
             message="Failed to retrieve row management",
+            error_code="INTERNAL_ERROR",
+            error_details=str(e),
+        )
+
+
+@router.get("/tables/{table_uuid}/validate")
+async def validate_table_qr(
+    table_uuid: str,
+    restaurant_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Validate a table UUID from a QR code (public, no auth)."""
+    try:
+        result = await TableSessionService.validate_table(db, table_uuid, restaurant_id)
+        return success_response(
+            message="Table validation complete",
+            data=result.model_dump(),
+        )
+    except Exception as e:
+        return error_response(
+            message="Failed to validate table",
             error_code="INTERNAL_ERROR",
             error_details=str(e),
         )

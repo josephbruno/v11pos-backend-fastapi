@@ -48,6 +48,24 @@ class CustomerAuthTokenResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class CustomerPhonePeInitRequest(BaseModel):
+    restaurant_id: str = Field(..., min_length=36, max_length=36)
+    amount: int = Field(..., gt=0, description="Amount in paise")
+    redirect_url: str = Field(..., min_length=8)
+    merchant_transaction_id: str = Field(..., min_length=8, max_length=64)
+    mobile_number: str = Field(..., min_length=10, max_length=15)
+    message: Optional[str] = None
+    order_type: Optional[str] = None
+    customer_name: Optional[str] = None
+    customer_email: Optional[str] = None
+
+
+class CustomerTablePaymentRequest(BaseModel):
+    payment_method: str = Field(..., min_length=2, max_length=32)
+    table_uuid: Optional[str] = None
+    mark_paid: bool = False
+
+
 class CustomerEmailOTPRequestResponse(BaseModel):
     """OTP request result: otp_sent means a code was stored; email_sent means SMTP accepted the message."""
 

@@ -174,13 +174,26 @@ class OrderStatusUpdate(BaseModel):
     """Schema for updating order status only"""
     status: OrderStatus
 
+    @field_validator("status", mode="before")
+    @classmethod
+    def map_delivered_alias(cls, v):
+        """Frontend uses 'delivered'; backend stores 'completed'."""
+        if isinstance(v, str) and v.lower() == "delivered":
+            return OrderStatus.COMPLETED
+        return v
+
 
 class OrderPaymentUpdate(BaseModel):
     """Schema for updating order payment"""
-    payment_method: PaymentMethod
+    payment_method: Optional[PaymentMethod] = None
     payment_status: PaymentStatus
-    paid_amount: int = Field(..., ge=0)
+    paid_amount: Optional[int] = Field(None, ge=0)
     payment_details: Optional[Dict[str, Any]] = None
+
+
+class OrderCancelRequest(BaseModel):
+    """Optional JSON body for order cancellation (frontend compat)."""
+    reason: Optional[str] = None
 
 
 class OrderAddItems(BaseModel):
