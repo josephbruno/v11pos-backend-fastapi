@@ -442,6 +442,14 @@ async def create_product(
             message="Product created successfully",
             data=ProductResponse.model_validate(product).model_dump()
         )
+    except DuplicateError as e:
+        return error_response(
+            message="Failed to create product",
+            error_code="DUPLICATE_ENTRY",
+            error_details=str(e),
+            field=e.field,
+            status_code=status.HTTP_409_CONFLICT
+        )
     except ValueError as e:
         return error_response(
             message="Failed to create product",
@@ -472,31 +480,17 @@ async def get_products(
 ):
     """Get products for a restaurant with pagination"""
     try:
-        from sqlalchemy import select, func, or_
-        from app.modules.product.model import Product as ProductModel
-
-        base_query = select(ProductModel).where(ProductModel.restaurant_id == restaurant_id)
-        if category_id:
-            base_query = base_query.where(ProductModel.category_id == category_id)
-        if available_only:
-            base_query = base_query.where(ProductModel.available == True)
-        if featured_only:
-            base_query = base_query.where(ProductModel.featured == True)
-        if search:
-            base_query = base_query.where(
-                or_(
-                    ProductModel.name.ilike(f"%{search}%"),
-                    ProductModel.description.ilike(f"%{search}%"),
-                )
-            )
-
-        count_result = await db.execute(select(func.count()).select_from(base_query.subquery()))
-        total_items = count_result.scalar() or 0
-
-        skip = (page - 1) * page_size
-        data_query = base_query.order_by(ProductModel.name).offset(skip).limit(page_size)
-        result = await db.execute(data_query)
-        products = list(result.scalars().all())
+        products, total_items = await ProductService.get_products_paginated(
+            db,
+            restaurant_id,
+            category_id=category_id,
+            available_only=available_only,
+            featured_only=featured_only,
+            search=search,
+            page=page,
+            page_size=page_size,
+            dedupe_by_name=True,
+        )
 
         products_data = [ProductResponse.model_validate(p).model_dump() for p in products]
         total_pages = max(1, (total_items + page_size - 1) // page_size)
@@ -613,6 +607,14 @@ async def update_product(
         return success_response(
             message="Product updated successfully",
             data=ProductResponse.model_validate(product).model_dump()
+        )
+    except DuplicateError as e:
+        return error_response(
+            message="Failed to update product",
+            error_code="DUPLICATE_ENTRY",
+            error_details=str(e),
+            field=e.field,
+            status_code=status.HTTP_409_CONFLICT
         )
     except ValueError as e:
         return error_response(

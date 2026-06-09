@@ -229,8 +229,8 @@ class SalesReportService:
             # Revenue
             if order.status == "completed":
                 metrics["total_sales"] += order.total_amount or 0
-                metrics["gross_sales"] += (order.subtotal_amount or 0)
-                metrics["net_sales"] += order.final_amount or 0
+                metrics["gross_sales"] += getattr(order, "subtotal", 0) or 0
+                metrics["net_sales"] += order.total_amount or 0
             
             # Tax
             metrics["total_tax"] += order.tax_amount or 0
@@ -467,7 +467,7 @@ class ItemWiseSalesReportService:
             # Calculate metrics
             quantity_sold = sum(item.quantity or 0 for item in items)
             total_revenue = sum(item.total_price or 0 for item in items)
-            gross_revenue = sum(item.subtotal_price or 0 for item in items)
+            gross_revenue = sum(getattr(item, "line_subtotal", 0) or 0 for item in items)
             total_discount = sum(item.discount_amount or 0 for item in items)
             total_tax = sum(item.tax_amount or 0 for item in items)
             net_revenue = total_revenue - total_discount
@@ -624,7 +624,7 @@ class CategoryWiseSalesReportService:
             total_items_sold = sum(item.quantity or 0 for item in items)
             unique_items_count = len(set(item.product_id for item in items if item.product_id))
             total_revenue = sum(item.total_price or 0 for item in items)
-            gross_revenue = sum(item.subtotal_price or 0 for item in items)
+            gross_revenue = sum(getattr(item, "line_subtotal", 0) or 0 for item in items)
             total_discount = sum(item.discount_amount or 0 for item in items)
             total_tax = sum(item.tax_amount or 0 for item in items)
             net_revenue = total_revenue - total_discount

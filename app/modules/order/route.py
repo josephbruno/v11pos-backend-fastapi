@@ -1,7 +1,13 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Body, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
-from datetime import datetime
+from app.core.query_datetime import (
+    QueryDateInput,
+    to_query_end_datetime,
+    to_query_start_datetime,
+)
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.core.response import success_response, error_response
@@ -102,6 +108,15 @@ async def create_order(
             )
         except Exception:
             pass
+
+        try:
+            from app.modules.kds.service import KDSService
+
+            await KDSService.route_order_to_stations(
+                db, str(order.id), current_user.id
+            )
+        except Exception:
+            pass
         
         return success_response(
             data=order_response,
@@ -177,8 +192,8 @@ async def get_restaurant_orders(
     payment_status: Optional[PaymentStatus] = Query(None, description="Filter by payment status"),
     customer_id: Optional[str] = Query(None, description="Filter by customer"),
     table_id: Optional[str] = Query(None, description="Filter by table"),
-    start_date: Optional[datetime] = Query(None, description="Filter from date"),
-    end_date: Optional[datetime] = Query(None, description="Filter to date"),
+    start_date: QueryDateInput = Query(None, description="Filter from date (YYYY-MM-DD or ISO datetime)"),
+    end_date: QueryDateInput = Query(None, description="Filter to date (YYYY-MM-DD or ISO datetime)"),
     search: Optional[str] = Query(None, description="Search by order number, guest name, or phone"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -206,8 +221,8 @@ async def get_restaurant_orders(
         payment_status=payment_status,
         customer_id=customer_id,
         table_id=table_id,
-        start_date=start_date,
-        end_date=end_date,
+        start_date=to_query_start_datetime(start_date),
+        end_date=to_query_end_datetime(end_date),
         search=search
     )
     
@@ -233,8 +248,8 @@ async def get_restaurant_orders(
 @router.get("/restaurant/{restaurant_id}/statistics", response_model=dict)
 async def get_order_statistics(
     restaurant_id: str,
-    start_date: Optional[datetime] = Query(None, description="Filter from date"),
-    end_date: Optional[datetime] = Query(None, description="Filter to date"),
+    start_date: QueryDateInput = Query(None, description="Filter from date (YYYY-MM-DD or ISO datetime)"),
+    end_date: QueryDateInput = Query(None, description="Filter to date (YYYY-MM-DD or ISO datetime)"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -246,8 +261,8 @@ async def get_order_statistics(
     stats = await OrderService.get_order_statistics(
         db,
         restaurant_id=restaurant_id,
-        start_date=start_date,
-        end_date=end_date
+        start_date=to_query_start_datetime(start_date),
+        end_date=to_query_end_datetime(end_date)
     )
     
     return success_response(
@@ -402,6 +417,16 @@ async def update_order_payment(
             payment_method=payment_method.value if payment_method else None,
             paid_amount=paid_amount,
         )
+        is_pos_source = (
+            (existing.source or "").lower() == "pos"
+            or getattr(existing, "is_pos_order", False)
+            or (not existing.source and bool(existing.created_by))
+        )
+        if is_pos_source and order.status != OrderStatus.COMPLETED.value:
+            order.status = OrderStatus.COMPLETED.value
+            if not order.completed_at:
+                order.completed_at = datetime.utcnow()
+            db.add(order)
 
     await db.commit()
     await db.refresh(order)

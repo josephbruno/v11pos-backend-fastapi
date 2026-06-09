@@ -83,6 +83,90 @@ class KDSService:
         
         result = await db.execute(query)
         return list(result.scalars().all())
+
+    @staticmethod
+    async def ensure_default_station(
+        db: AsyncSession,
+        restaurant_id: str,
+    ) -> KitchenStation:
+        """Create a default Main Kitchen station when none exist."""
+        stations = await KDSService.get_stations(
+            db, restaurant_id, is_active=True
+        )
+        if stations:
+            return stations[0]
+
+        station = await KDSService.create_station(
+            db,
+            KitchenStationCreate(
+                restaurant_id=restaurant_id,
+                name="Main Kitchen",
+                station_type=StationType.MAIN_KITCHEN,
+                description="Default kitchen station",
+                display_order=0,
+                average_prep_time=15,
+                auto_accept_orders=False,
+                alert_on_new_order=True,
+                show_customer_names=True,
+                show_table_numbers=True,
+            ),
+        )
+        await KDSService.sync_missing_displays(db, restaurant_id)
+        return station
+
+    @staticmethod
+    async def sync_missing_displays(
+        db: AsyncSession,
+        restaurant_id: str,
+        user_id: Optional[str] = None,
+        *,
+        limit: int = 50,
+    ) -> int:
+        """Route recent kitchen-relevant orders that have no active KDS ticket."""
+        from app.modules.order.model import OrderStatus
+
+        kitchen_statuses = {
+            OrderStatus.PENDING.value,
+            OrderStatus.PENDING_APPROVAL.value,
+            OrderStatus.CONFIRMED.value,
+            OrderStatus.PREPARING.value,
+            OrderStatus.READY.value,
+            OrderStatus.ON_HOLD.value,
+        }
+
+        orders_result = await db.execute(
+            select(Order)
+            .where(
+                Order.restaurant_id == restaurant_id,
+                func.lower(Order.status).in_(kitchen_statuses),
+            )
+            .order_by(Order.created_at.desc())
+            .limit(limit)
+        )
+        orders = list(orders_result.scalars().all())
+        routed = 0
+
+        for order in orders:
+            existing_count = await db.scalar(
+                select(func.count())
+                .select_from(KitchenDisplay)
+                .where(
+                    KitchenDisplay.order_id == order.id,
+                    KitchenDisplay.status.not_in(
+                        [DisplayStatus.COMPLETED, DisplayStatus.CANCELLED]
+                    ),
+                )
+            )
+            if existing_count:
+                continue
+
+            displays = await KDSService.route_order_to_stations(
+                db, order.id, user_id
+            )
+            if displays:
+                routed += 1
+
+        return routed
     
     @staticmethod
     async def update_station(
@@ -145,6 +229,8 @@ class KDSService:
         if not order:
             return []
         
+        await KDSService.ensure_default_station(db, order.restaurant_id)
+
         # Get order items
         items_result = await db.execute(
             select(OrderItem).where(OrderItem.order_id == order_id)
@@ -192,6 +278,18 @@ class KDSService:
         for station_id, items in station_items.items():
             station = next((s for s in stations if s.id == station_id), None)
             if not station:
+                continue
+
+            existing_display = await db.scalar(
+                select(KitchenDisplay.id).where(
+                    KitchenDisplay.order_id == order.id,
+                    KitchenDisplay.station_id == station_id,
+                    KitchenDisplay.status.not_in(
+                        [DisplayStatus.COMPLETED, DisplayStatus.CANCELLED]
+                    ),
+                )
+            )
+            if existing_display:
                 continue
             
             # Calculate estimated prep time

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from calendar import monthrange
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
+
+from app.core.query_datetime import ist_day_end_utc, ist_day_start_utc, ist_today
 
 from pydantic import BaseModel, Field
 from sqlalchemy import select, and_
@@ -373,9 +375,14 @@ def parse_frontend_generate_dates(
 
 
 def resolve_dashboard_dates(period: Optional[str]) -> tuple[datetime, datetime]:
-    now = datetime.utcnow()
+    """Resolve dashboard period bounds using IST calendar days."""
+    today = ist_today()
+    period_key = (period or "30d").lower()
+
+    if period_key == "today":
+        return ist_day_start_utc(today), ist_day_end_utc(today)
+
     mapping = {
-        "today": 1,
         "7d": 7,
         "7days": 7,
         "30d": 30,
@@ -384,8 +391,9 @@ def resolve_dashboard_dates(period: Optional[str]) -> tuple[datetime, datetime]:
         "3months": 90,
         "12months": 365,
     }
-    days = mapping.get((period or "30d").lower(), 30)
-    return now - timedelta(days=days), now
+    days = mapping.get(period_key, 30)
+    start_day: date = today - timedelta(days=days - 1)
+    return ist_day_start_utc(start_day), ist_day_end_utc(today)
 
 
 async def build_restaurant_dashboard(

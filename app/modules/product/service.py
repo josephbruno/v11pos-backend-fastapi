@@ -2,9 +2,9 @@
 Product catalog and inventory service layer
 """
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_, func
+from sqlalchemy import select, and_, or_, func, text
 from sqlalchemy.orm import joinedload
-from typing import Optional, List
+from typing import Optional, List, Tuple, Dict
 from datetime import datetime
 
 from app.modules.product.model import (
@@ -188,10 +188,276 @@ class CategoryService:
 
 class ProductService:
     """Service for product operations"""
+
+    @staticmethod
+    def _product_scope_conditions(
+        restaurant_id: str,
+        *,
+        category_id: Optional[str] = None,
+        available_only: bool = False,
+        featured_only: bool = False,
+        search: Optional[str] = None,
+    ):
+        conditions = [
+            Product.restaurant_id == restaurant_id,
+            Product.deleted_at.is_(None),
+        ]
+        if category_id:
+            conditions.append(Product.category_id == category_id)
+        if available_only:
+            conditions.append(Product.available == True)
+        if featured_only:
+            conditions.append(Product.featured == True)
+        if search:
+            conditions.append(
+                or_(
+                    Product.name.ilike(f"%{search}%"),
+                    Product.description.ilike(f"%{search}%"),
+                )
+            )
+        return conditions
+
+    @staticmethod
+    async def _assert_product_unique(
+        db: AsyncSession,
+        restaurant_id: str,
+        name: str,
+        slug: str,
+        exclude_product_id: Optional[str] = None,
+    ) -> None:
+        name_stmt = select(Product.id).where(
+            Product.restaurant_id == restaurant_id,
+            func.lower(Product.name) == func.lower(name.strip()),
+            Product.deleted_at.is_(None),
+        )
+        if exclude_product_id:
+            name_stmt = name_stmt.where(Product.id != exclude_product_id)
+        if await db.scalar(name_stmt):
+            raise DuplicateError(
+                "Product with this name already exists in this restaurant",
+                field="name",
+            )
+
+        slug_stmt = select(Product.id).where(
+            Product.restaurant_id == restaurant_id,
+            Product.slug == slug,
+            Product.deleted_at.is_(None),
+        )
+        if exclude_product_id:
+            slug_stmt = slug_stmt.where(Product.id != exclude_product_id)
+        if await db.scalar(slug_stmt):
+            raise DuplicateError(
+                "Product with this slug already exists in this restaurant",
+                field="slug",
+            )
+
+    @staticmethod
+    async def get_products_paginated(
+        db: AsyncSession,
+        restaurant_id: str,
+        *,
+        category_id: Optional[str] = None,
+        available_only: bool = False,
+        featured_only: bool = False,
+        search: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 12,
+        dedupe_by_name: bool = True,
+    ) -> Tuple[List[Product], int]:
+        """Get paginated products, optionally deduping same-name rows."""
+        conditions = ProductService._product_scope_conditions(
+            restaurant_id,
+            category_id=category_id,
+            available_only=available_only,
+            featured_only=featured_only,
+            search=search,
+        )
+
+        if dedupe_by_name:
+            ranked_subq = (
+                select(
+                    Product.id.label("product_id"),
+                    func.row_number()
+                    .over(
+                        partition_by=func.lower(Product.name),
+                        order_by=(
+                            Product.updated_at.desc(),
+                            Product.created_at.desc(),
+                            Product.id.desc(),
+                        ),
+                    )
+                    .label("row_num"),
+                )
+                .where(and_(*conditions))
+            ).subquery()
+
+            deduped_ids = select(ranked_subq.c.product_id).where(
+                ranked_subq.c.row_num == 1
+            ).subquery()
+
+            total_items = await db.scalar(
+                select(func.count()).select_from(deduped_ids)
+            ) or 0
+
+            skip = max(page - 1, 0) * page_size
+            result = await db.execute(
+                select(Product)
+                .join(deduped_ids, Product.id == deduped_ids.c.product_id)
+                .order_by(Product.name)
+                .offset(skip)
+                .limit(page_size)
+            )
+            return list(result.scalars().all()), total_items
+
+        base_query = select(Product).where(and_(*conditions))
+        total_items = await db.scalar(
+            select(func.count()).select_from(base_query.subquery())
+        ) or 0
+
+        skip = max(page - 1, 0) * page_size
+        result = await db.execute(
+            base_query.order_by(Product.name).offset(skip).limit(page_size)
+        )
+        return list(result.scalars().all()), total_items
+
+    @staticmethod
+    async def _reassign_product_references(
+        db: AsyncSession,
+        duplicate_id: str,
+        keeper_id: str,
+    ) -> None:
+        """Point foreign keys from a duplicate product to the kept product."""
+        params = {"keeper_id": keeper_id, "duplicate_id": duplicate_id}
+        for table in (
+            "order_items",
+            "cart_items",
+            "item_wise_sales_reports",
+            "combo_items",
+        ):
+            await db.execute(
+                text(
+                    f"UPDATE {table} SET product_id = :keeper_id "
+                    "WHERE product_id = :duplicate_id"
+                ),
+                params,
+            )
+
+        await db.execute(
+            text(
+                """
+                UPDATE product_modifiers pm
+                LEFT JOIN product_modifiers keeper_pm
+                  ON keeper_pm.product_id = :keeper_id
+                 AND keeper_pm.modifier_id = pm.modifier_id
+                SET pm.product_id = :keeper_id
+                WHERE pm.product_id = :duplicate_id
+                  AND keeper_pm.id IS NULL
+                """
+            ),
+            params,
+        )
+        await db.execute(
+            text("DELETE FROM product_modifiers WHERE product_id = :duplicate_id"),
+            params,
+        )
+
+    @staticmethod
+    async def _find_duplicate_product_mappings(
+        db: AsyncSession,
+        restaurant_id: Optional[str] = None,
+    ) -> List[Tuple[str, str]]:
+        """Return (duplicate_id, keeper_id) pairs for same-name products."""
+        restaurant_filter = ""
+        params: Dict[str, str] = {}
+        if restaurant_id:
+            restaurant_filter = "AND restaurant_id = :restaurant_id"
+            params["restaurant_id"] = restaurant_id
+
+        result = await db.execute(
+            text(
+                f"""
+                WITH ranked AS (
+                    SELECT
+                        id,
+                        restaurant_id,
+                        LOWER(name) AS name_key,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY restaurant_id, LOWER(name)
+                            ORDER BY updated_at DESC, created_at DESC, id DESC
+                        ) AS row_num
+                    FROM products
+                    WHERE deleted_at IS NULL
+                    {restaurant_filter}
+                ),
+                keepers AS (
+                    SELECT restaurant_id, name_key, id AS keeper_id
+                    FROM ranked
+                    WHERE row_num = 1
+                )
+                SELECT r.id AS duplicate_id, k.keeper_id
+                FROM ranked r
+                JOIN keepers k
+                  ON r.restaurant_id = k.restaurant_id
+                 AND r.name_key = k.name_key
+                WHERE r.row_num > 1
+                """
+            ),
+            params,
+        )
+        return list(result.all())
+
+    @staticmethod
+    async def remove_duplicate_products(
+        db: AsyncSession,
+        restaurant_id: Optional[str] = None,
+        dry_run: bool = False,
+    ) -> Dict[str, int]:
+        """
+        Delete duplicate products within the same restaurant (same name, case-insensitive).
+        Keeps the most recently updated row and reassigns foreign keys first.
+        """
+        mappings = await ProductService._find_duplicate_product_mappings(
+            db, restaurant_id=restaurant_id
+        )
+        duplicate_groups = len({keeper_id for _, keeper_id in mappings})
+
+        if dry_run:
+            return {
+                "duplicate_groups": duplicate_groups,
+                "products_to_delete": len(mappings),
+                "deleted": 0,
+            }
+
+        deleted = 0
+        for duplicate_id, keeper_id in mappings:
+            await ProductService._reassign_product_references(
+                db, duplicate_id, keeper_id
+            )
+            result = await db.execute(
+                text("DELETE FROM products WHERE id = :duplicate_id"),
+                {"duplicate_id": duplicate_id},
+            )
+            if result.rowcount:
+                deleted += 1
+
+        if deleted:
+            await db.commit()
+
+        return {
+            "duplicate_groups": duplicate_groups,
+            "products_to_delete": len(mappings),
+            "deleted": deleted,
+        }
     
     @staticmethod
     async def create_product(db: AsyncSession, product_data: ProductCreate) -> Product:
         """Create a new product"""
+        await ProductService._assert_product_unique(
+            db,
+            product_data.restaurant_id,
+            product_data.name,
+            product_data.slug,
+        )
         product = Product(**product_data.model_dump())
         db.add(product)
         await db.commit()
@@ -282,8 +548,18 @@ class ProductService:
         
         if not product:
             return None
-        
+
         update_data = product_data.model_dump(exclude_unset=True)
+        next_name = update_data.get("name", product.name)
+        next_slug = update_data.get("slug", product.slug)
+        await ProductService._assert_product_unique(
+            db,
+            product.restaurant_id,
+            next_name,
+            next_slug,
+            exclude_product_id=product_id,
+        )
+
         for field, value in update_data.items():
             setattr(product, field, value)
         

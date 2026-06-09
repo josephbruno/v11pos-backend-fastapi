@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, PlainTextResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func
 from typing import Optional, List
 from datetime import datetime
 from app.core.database import get_db
@@ -19,7 +20,7 @@ from app.modules.kds.schema import (
     StationStatusUpdate,
     KitchenPerformance
 )
-from app.modules.kds.model import StationType, DisplayStatus, ItemStatus
+from app.modules.kds.model import StationType, DisplayStatus, ItemStatus, KitchenDisplay
 from app.modules.kds.service import KDSService
 from app.modules.kds.printer import KOTPrinter
 from app.modules.kds.websocket import kds_manager
@@ -106,6 +107,31 @@ async def get_restaurant_stations(
         is_active=is_active,
         is_online=is_online
     )
+
+    if not stations:
+        await KDSService.ensure_default_station(db, restaurant_id)
+        stations = await KDSService.get_stations(
+            db,
+            restaurant_id=restaurant_id,
+            station_type=station_type,
+            is_active=is_active,
+            is_online=is_online
+        )
+    else:
+        active_display_count = await db.scalar(
+            select(func.count())
+            .select_from(KitchenDisplay)
+            .where(
+                KitchenDisplay.restaurant_id == restaurant_id,
+                KitchenDisplay.status.not_in(
+                    [DisplayStatus.COMPLETED, DisplayStatus.CANCELLED]
+                ),
+            )
+        )
+        if not active_display_count:
+            await KDSService.sync_missing_displays(
+                db, restaurant_id, current_user.id
+            )
     
     return success_response(
         data={

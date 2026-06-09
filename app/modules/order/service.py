@@ -69,6 +69,12 @@ class OrderService:
         """
         # Generate order number
         order_number = OrderService.generate_order_number()
+
+        # POS terminal orders (admin/order) should always be tagged as source=pos
+        order_source = order_data.source
+        if not order_source and created_by:
+            order_source = "pos"
+        is_pos_order = (order_source or "").lower() == "pos"
         
         # Create order
         db_order = Order(
@@ -97,8 +103,9 @@ class OrderService:
             staff_notes=order_data.staff_notes,
             discount_code=order_data.discount_code,
             discount_type=order_data.discount_type,
-            source=order_data.source,
+            source=order_source,
             source_details=order_data.source_details,
+            is_pos_order=is_pos_order,
             is_priority=order_data.is_priority,
             requires_cutlery=order_data.requires_cutlery,
             status=initial_status or OrderStatus.PENDING,
@@ -574,15 +581,26 @@ class OrderService:
             status_result = await db.execute(status_query)
             statuses[f"{status.value}_orders"] = status_result.scalar_one()
         
-        # Revenue (completed orders only)
+        # Revenue from active sales orders (exclude cancelled/refunded)
+        revenue_query_base = query.where(
+            Order.status.not_in([OrderStatus.CANCELLED, OrderStatus.REFUNDED])
+        )
         revenue_query = select(func.sum(Order.total_amount)).select_from(
-            query.where(Order.status == OrderStatus.COMPLETED).subquery()
+            revenue_query_base.subquery()
         )
         revenue_result = await db.execute(revenue_query)
         total_revenue = revenue_result.scalar_one() or 0
-        
-        # Average order value
-        avg_value = int(total_revenue / statuses["completed_orders"]) if statuses["completed_orders"] > 0 else 0
+
+        revenue_count_query = select(func.count()).select_from(
+            revenue_query_base.subquery()
+        )
+        revenue_count_result = await db.execute(revenue_count_query)
+        revenue_order_count = revenue_count_result.scalar_one() or 0
+
+        # Average order value across revenue-eligible orders
+        avg_value = (
+            int(total_revenue / revenue_order_count) if revenue_order_count > 0 else 0
+        )
         
         return {
             "total_orders": total,
