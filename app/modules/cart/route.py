@@ -150,7 +150,7 @@ async def checkout_cart(
                     "type": "order_created",
                     "restaurant_id": str(order.restaurant_id),
                     "order_id": str(order.id),
-                    "order": order_response.model_dump(),
+                    "order": order_response.model_dump(mode="json"),
                     "timestamp": datetime.utcnow().isoformat(),
                 },
             )

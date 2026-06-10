@@ -8,7 +8,7 @@ from app.core.query_datetime import (
     to_query_end_datetime,
     to_query_start_datetime,
 )
-from app.core.database import get_db
+from app.core.database import get_db, AsyncSessionLocal
 from app.core.dependencies import get_current_user
 from app.core.response import success_response, error_response
 from app.modules.order.schema import (
@@ -28,11 +28,50 @@ from app.modules.order.model import PaymentMethod
 from app.modules.payment.service import OrderPaymentService
 from app.modules.order.model import OrderType, OrderStatus, PaymentStatus
 from app.modules.order.service import OrderService
-from app.modules.order.websocket import order_ws_manager
+from app.modules.order.websocket import order_ws_manager, normalize_restaurant_id
 from app.modules.user.model import User
 
 
 router = APIRouter(prefix="/orders", tags=["orders"])
+
+# Kitchen queue statuses included in the live WebSocket snapshot.
+_ACTIVE_QUEUE_STATUSES = {
+    OrderStatus.PENDING_APPROVAL,
+    OrderStatus.PENDING,
+    OrderStatus.CONFIRMED,
+    OrderStatus.PREPARING,
+    OrderStatus.READY,
+    OrderStatus.ON_HOLD,
+}
+
+
+async def _send_orders_snapshot(websocket: WebSocket, restaurant_id: str) -> None:
+    """Push current active kitchen orders when a client connects."""
+    async with AsyncSessionLocal() as db:
+        orders, _ = await OrderService.get_orders(
+            db,
+            restaurant_id=restaurant_id,
+            skip=0,
+            limit=100,
+        )
+        active_orders = [o for o in orders if o.status in _ACTIVE_QUEUE_STATUSES]
+        orders_payload = []
+        for order in active_orders:
+            items = await OrderService.get_order_items(db, order.id)
+            order_response = OrderResponse.model_validate(order)
+            order_response.items = [
+                OrderItemResponse.model_validate(item) for item in items
+            ]
+            orders_payload.append(order_response.model_dump(mode="json"))
+
+    await websocket.send_json(
+        {
+            "type": "orders_snapshot",
+            "restaurant_id": restaurant_id,
+            "orders": orders_payload,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    )
 
 
 @router.websocket("/ws/{restaurant_id}")
@@ -40,11 +79,20 @@ async def websocket_orders(websocket: WebSocket, restaurant_id: str):
     """
     WebSocket endpoint for real-time order updates scoped by restaurant.
 
+    On connect, sends an ``orders_snapshot`` with active kitchen orders, then
+    pushes ``order_created`` / status events as they occur.
+
     Example:
         const ws = new WebSocket('ws://localhost:8000/api/v1/orders/ws/<restaurant_id>');
     """
+    restaurant_id = normalize_restaurant_id(restaurant_id)
     await order_ws_manager.connect(websocket, restaurant_id)
     try:
+        try:
+            await _send_orders_snapshot(websocket, restaurant_id)
+        except Exception:
+            pass
+
         while True:
             data = await websocket.receive_json()
             if isinstance(data, dict) and data.get("type") == "ping":
@@ -97,12 +145,12 @@ async def create_order(
         # Best-effort WebSocket notification (do not affect response on failure)
         try:
             await order_ws_manager.broadcast(
-                order_data.restaurant_id,
+                str(order_data.restaurant_id),
                 {
                     "type": "order_created",
-                    "restaurant_id": order_data.restaurant_id,
+                    "restaurant_id": str(order_data.restaurant_id),
                     "order_id": str(order.id),
-                    "order": order_response.model_dump(),
+                    "order": order_response.model_dump(mode="json"),
                     "timestamp": datetime.utcnow().isoformat(),
                 },
             )
@@ -299,7 +347,7 @@ async def update_order(
                 "type": "order_updated",
                 "restaurant_id": str(order.restaurant_id),
                 "order_id": str(order.id),
-                "order": order_response.model_dump(),
+                "order": order_response.model_dump(mode="json"),
                 "timestamp": datetime.utcnow().isoformat(),
             },
         )
@@ -348,7 +396,7 @@ async def update_order_status(
                 "restaurant_id": str(order.restaurant_id),
                 "order_id": str(order.id),
                 "status": status_data.status.value,
-                "order": order_response.model_dump(),
+                "order": order_response.model_dump(mode="json"),
                 "timestamp": datetime.utcnow().isoformat(),
             },
         )

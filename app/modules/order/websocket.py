@@ -13,6 +13,11 @@ from typing import Dict, List
 from fastapi import WebSocket
 
 
+def normalize_restaurant_id(restaurant_id: str) -> str:
+    """Canonical key for connection map lookups (must match broadcast keys)."""
+    return str(restaurant_id).strip()
+
+
 class OrderConnectionManager:
     """Manages WebSocket connections for order updates (scoped by restaurant)."""
 
@@ -21,6 +26,7 @@ class OrderConnectionManager:
         self.connections: Dict[str, List[WebSocket]] = {}
 
     async def connect(self, websocket: WebSocket, restaurant_id: str) -> None:
+        restaurant_id = normalize_restaurant_id(restaurant_id)
         await websocket.accept()
         self.connections.setdefault(restaurant_id, []).append(websocket)
 
@@ -34,6 +40,7 @@ class OrderConnectionManager:
         )
 
     def disconnect(self, websocket: WebSocket, restaurant_id: str) -> None:
+        restaurant_id = normalize_restaurant_id(restaurant_id)
         if restaurant_id not in self.connections:
             return
 
@@ -45,6 +52,7 @@ class OrderConnectionManager:
 
     async def broadcast(self, restaurant_id: str, message: dict) -> None:
         """Broadcast to all connections for a restaurant (best-effort)."""
+        restaurant_id = normalize_restaurant_id(restaurant_id)
         if restaurant_id not in self.connections:
             return
 
