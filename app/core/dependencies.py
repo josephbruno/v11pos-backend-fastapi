@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import decode_token
+from app.core.timezone import APP_TIMEZONE
 from app.modules.user.model import User
 
 if TYPE_CHECKING:
@@ -89,8 +90,8 @@ async def get_current_user(
             detail="Inactive user"
         )
     
-    # Add timezone settings to user object for easy access
-    user.timezone = row[1] or 'Asia/Kolkata'
+    # Application uses IST only for display/query boundaries
+    user.timezone = APP_TIMEZONE
     user.date_format = row[2] or 'DD/MM/YYYY'
     user.time_format = row[3] or '24h'
     user.country = row[4] or 'India'
@@ -161,7 +162,7 @@ async def get_restaurant_timezone(
     Returns:
         Restaurant timezone string
     """
-    return getattr(current_user, 'timezone', 'Asia/Kolkata')
+    return APP_TIMEZONE
 
 
 async def get_current_customer(
@@ -219,8 +220,8 @@ class CartAuthContext:
 
     def response_timezone(self) -> Optional[str]:
         if self.staff_user is not None:
-            return getattr(self.staff_user, "timezone", None)
-        return None
+            return APP_TIMEZONE
+        return APP_TIMEZONE
 
     def enforce_customer_path_scope(self, restaurant_id: str, customer_id: str) -> None:
         """When the caller is a customer, URL/body ids must match their account."""
@@ -333,7 +334,7 @@ async def get_cart_auth_context(
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive user")
 
-    user.timezone = row[1] or "Asia/Kolkata"
+    user.timezone = APP_TIMEZONE
     user.date_format = row[2] or "DD/MM/YYYY"
     user.time_format = row[3] or "24h"
     user.country = row[4] or "India"

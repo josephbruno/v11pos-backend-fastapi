@@ -3,6 +3,15 @@ from datetime import datetime
 from typing import Optional
 
 
+def _coerce_optional_str(value):
+    if value is None:
+        return None
+    if isinstance(value, str):
+        stripped = value.strip()
+        return stripped or None
+    return value
+
+
 class CustomerAddressBase(BaseModel):
     label: Optional[str] = Field(None, max_length=100)
     address: Optional[str] = Field(None, max_length=500)
@@ -58,6 +67,28 @@ class CustomerBase(BaseModel):
     longitude: Optional[float] = Field(None, ge=-180, le=180)
     notes: Optional[str] = Field(None, max_length=1000)
 
+    @field_validator("email", mode="before")
+    @classmethod
+    def coerce_email(cls, value):
+        value = _coerce_optional_str(value)
+        if isinstance(value, str):
+            return value.lower()
+        return value
+
+    @field_validator(
+        "phone",
+        "address",
+        "city",
+        "state",
+        "postal_code",
+        "country",
+        "notes",
+        mode="before",
+    )
+    @classmethod
+    def coerce_optional_strings(cls, value):
+        return _coerce_optional_str(value)
+
 
 class CustomerCreate(CustomerBase):
     """Schema for creating a customer"""
@@ -83,6 +114,20 @@ class CustomerSelfProfileUpdate(BaseModel):
     longitude: Optional[float] = Field(None, ge=-180, le=180)
     notes: Optional[str] = Field(None, max_length=1000)
 
+    @field_validator(
+        "phone",
+        "address",
+        "city",
+        "state",
+        "postal_code",
+        "country",
+        "notes",
+        mode="before",
+    )
+    @classmethod
+    def coerce_optional_strings(cls, value):
+        return _coerce_optional_str(value)
+
 
 class CustomerUpdate(BaseModel):
     """Schema for updating a customer"""
@@ -98,6 +143,28 @@ class CustomerUpdate(BaseModel):
     longitude: Optional[float] = Field(None, ge=-180, le=180)
     notes: Optional[str] = Field(None, max_length=1000)
     is_active: Optional[bool] = None
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def coerce_email(cls, value):
+        value = _coerce_optional_str(value)
+        if isinstance(value, str):
+            return value.lower()
+        return value
+
+    @field_validator(
+        "phone",
+        "address",
+        "city",
+        "state",
+        "postal_code",
+        "country",
+        "notes",
+        mode="before",
+    )
+    @classmethod
+    def coerce_optional_strings(cls, value):
+        return _coerce_optional_str(value)
 
 
 class CustomerResponse(CustomerBase):

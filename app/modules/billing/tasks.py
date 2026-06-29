@@ -8,12 +8,12 @@ from datetime import datetime
 from sqlalchemy import select, update
 
 from app.core.celery_app import celery_app
-from app.core.database import AsyncSessionLocal
+from app.core.database import AsyncSessionLocal, utc_now_naive
 from app.modules.restaurant.model import Restaurant, SubscriptionPlanType, SubscriptionStatus
 
 
 async def _expire_trials() -> int:
-    now = datetime.utcnow()
+    now = utc_now_naive()
     count = 0
     async with AsyncSessionLocal() as db:
         result = await db.execute(

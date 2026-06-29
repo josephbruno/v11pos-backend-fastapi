@@ -1,6 +1,6 @@
 from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey, Text, Enum as SQLEnum, Date, Time, Numeric
 from sqlalchemy.orm import relationship
-from app.core.database import Base
+from app.core.database import Base, utc_now_naive
 from datetime import datetime
 import enum
 
@@ -140,8 +140,8 @@ class Role(Base):
     is_active = Column(Boolean, default=True, index=True)
     
     # Audit
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now_naive)
+    updated_at = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
     created_by = Column(String(36), ForeignKey("users.id"))
     updated_by = Column(String(36), ForeignKey("users.id"))
     
@@ -162,7 +162,7 @@ class RolePermission(Base):
     permission = Column(SQLEnum(PermissionType), nullable=False, index=True)
     
     # Audit
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now_naive)
     created_by = Column(String(36), ForeignKey("users.id"))
     
     # Relationships
@@ -231,8 +231,8 @@ class Staff(Base):
     notes = Column(Text)
     
     # Audit
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now_naive)
+    updated_at = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
     created_by = Column(String(36), ForeignKey("users.id"))
     updated_by = Column(String(36), ForeignKey("users.id"))
     
@@ -276,8 +276,8 @@ class Shift(Base):
     notes = Column(Text)
     
     # Audit
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now_naive)
+    updated_at = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
     created_by = Column(String(36), ForeignKey("users.id"))
     
     # Relationships
@@ -329,8 +329,8 @@ class Attendance(Base):
     approved_at = Column(DateTime)
     
     # Audit
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now_naive)
+    updated_at = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
     
     # Relationships
     restaurant = relationship("Restaurant", back_populates="attendance_records")
@@ -373,8 +373,8 @@ class LeaveApplication(Base):
     contact_number = Column(String(20))
     
     # Audit
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now_naive)
+    updated_at = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
     
     # Relationships
     restaurant = relationship("Restaurant", back_populates="leave_applications")
@@ -403,8 +403,8 @@ class LeaveBalance(Base):
     carried_forward = Column(Integer, default=0)  # From previous year
     
     # Audit
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now_naive)
+    updated_at = Column(DateTime, default=utc_now_naive, onupdate=utc_now_naive)
     
     # Relationships
     restaurant = relationship("Restaurant")

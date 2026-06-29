@@ -8,6 +8,8 @@ from datetime import datetime
 import json
 import asyncio
 
+from app.core.timezone import ist_now_iso
+
 
 class KDSConnectionManager:
     """Manages WebSocket connections for KDS real-time updates"""
@@ -42,7 +44,7 @@ class KDSConnectionManager:
             "status": "connected",
             "restaurant_id": restaurant_id,
             "station_id": station_id,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": ist_now_iso()
         })
     
     async def connect_pos(self, websocket: WebSocket, restaurant_id: str):
@@ -60,7 +62,7 @@ class KDSConnectionManager:
             "status": "connected",
             "role": "pos",
             "restaurant_id": restaurant_id,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": ist_now_iso()
         })
     
     async def connect_admin(self, websocket: WebSocket):
@@ -72,7 +74,7 @@ class KDSConnectionManager:
             "type": "connection",
             "status": "connected",
             "role": "admin",
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": ist_now_iso()
         })
     
     def disconnect_station(self, websocket: WebSocket, restaurant_id: str, station_id: str):
@@ -161,7 +163,7 @@ class KDSConnectionManager:
             "restaurant_id": restaurant_id,
             "station_id": station_id,
             "display": display_data,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": ist_now_iso()
         }
         
         await self.broadcast_to_station(restaurant_id, station_id, message)
@@ -185,7 +187,7 @@ class KDSConnectionManager:
             "old_status": old_status,
             "new_status": new_status,
             "display": display_data,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": ist_now_iso()
         }
         
         # Notify the station
@@ -215,7 +217,7 @@ class KDSConnectionManager:
             "item_id": item_id,
             "old_status": old_status,
             "new_status": new_status,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": ist_now_iso()
         }
         
         await self.broadcast_to_station(restaurant_id, station_id, message)
@@ -229,7 +231,7 @@ class KDSConnectionManager:
             "restaurant_id": restaurant_id,
             "order_id": order_id,
             "order": order_data,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": ist_now_iso()
         }
         
         await self.broadcast_to_pos(restaurant_id, message)
@@ -249,7 +251,7 @@ class KDSConnectionManager:
             "station_id": station_id,
             "display_id": display_id,
             "delay_minutes": delay_minutes,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": ist_now_iso()
         }
         
         await self.broadcast_to_station(restaurant_id, station_id, message)
@@ -260,7 +262,7 @@ class KDSConnectionManager:
         """Send periodic heartbeat to all connections"""
         message = {
             "type": "heartbeat",
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": ist_now_iso()
         }
         
         # Send to all station connections

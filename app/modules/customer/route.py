@@ -42,6 +42,16 @@ async def create_customer(
     - **notes**: Additional notes
     """
     try:
+        user_restaurant_id = getattr(current_user, "restaurant_id", None)
+        is_platform_admin = bool(
+            getattr(current_user, "is_superadmin", False)
+            or getattr(current_user, "is_superuser", False)
+        )
+        if user_restaurant_id and not is_platform_admin:
+            customer_data = customer_data.model_copy(
+                update={"restaurant_id": str(user_restaurant_id)}
+            )
+
         if customer_data.email:
             dup = await CustomerService.get_customer_by_email(
                 db, str(customer_data.email).lower(), customer_data.restaurant_id

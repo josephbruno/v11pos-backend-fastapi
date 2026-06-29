@@ -53,6 +53,7 @@ class CartProductSummary(BaseModel):
     category_id: str
     category_name: Optional[str] = None
     available: bool
+    is_published: bool = True
 
     model_config = ConfigDict(from_attributes=True)
 

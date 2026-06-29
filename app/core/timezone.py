@@ -8,6 +8,10 @@ import pytz
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from app.core.config import settings
+
+APP_TIMEZONE = settings.APP_TIMEZONE
+
 
 def get_utc_now() -> datetime:
     """
@@ -19,7 +23,17 @@ def get_utc_now() -> datetime:
     return datetime.now(dt_timezone.utc)
 
 
-def convert_to_utc(dt: datetime, from_timezone: str = 'UTC') -> datetime:
+def get_ist_now() -> datetime:
+    """Current datetime in application timezone (IST)."""
+    return datetime.now(ZoneInfo(APP_TIMEZONE))
+
+
+def ist_now_iso() -> str:
+    """ISO-8601 timestamp in IST for API envelopes and WebSocket events."""
+    return get_ist_now().isoformat()
+
+
+def convert_to_utc(dt: datetime, from_timezone: str = APP_TIMEZONE) -> datetime:
     """
     Convert datetime to UTC
     
@@ -42,7 +56,7 @@ def convert_to_utc(dt: datetime, from_timezone: str = 'UTC') -> datetime:
     return dt.astimezone(pytz.UTC)
 
 
-def convert_from_utc(dt: datetime, to_timezone: str = 'UTC') -> datetime:
+def convert_from_utc(dt: datetime, to_timezone: str = APP_TIMEZONE) -> datetime:
     """
     Convert UTC datetime to target timezone
     
@@ -67,7 +81,7 @@ def convert_from_utc(dt: datetime, to_timezone: str = 'UTC') -> datetime:
 
 def convert_datetime_fields(
     data: Any,
-    to_timezone: str = 'UTC',
+    to_timezone: str = APP_TIMEZONE,
     datetime_fields: Optional[List[str]] = None
 ) -> Any:
     """
@@ -183,9 +197,9 @@ async def get_restaurant_timezone(db: AsyncSession, restaurant_id: str) -> str:
             .where(Restaurant.id == restaurant_id)
         )
         timezone = result.scalar_one_or_none()
-        return timezone or 'Asia/Kolkata'
+        return timezone or APP_TIMEZONE
     except Exception:
-        return 'Asia/Kolkata'
+        return APP_TIMEZONE
 
 
 async def get_restaurant_datetime_settings(db: AsyncSession, restaurant_id: str) -> Dict[str, str]:
@@ -215,7 +229,7 @@ async def get_restaurant_datetime_settings(db: AsyncSession, restaurant_id: str)
         
         if row:
             return {
-                'timezone': row[0] or 'Asia/Kolkata',
+                'timezone': APP_TIMEZONE,
                 'date_format': row[1] or 'DD/MM/YYYY',
                 'time_format': row[2] or '24h',
                 'country': row[3] or 'India'
@@ -225,7 +239,7 @@ async def get_restaurant_datetime_settings(db: AsyncSession, restaurant_id: str)
     
     # Default settings
     return {
-        'timezone': 'Asia/Kolkata',
+        'timezone': APP_TIMEZONE,
         'date_format': 'DD/MM/YYYY',
         'time_format': '24h',
         'country': 'India'

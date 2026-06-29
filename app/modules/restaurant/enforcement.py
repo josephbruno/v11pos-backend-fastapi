@@ -5,6 +5,7 @@ from datetime import datetime
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.database import utc_now
 from app.modules.restaurant.model import Restaurant, SubscriptionStatus
 from app.modules.restaurant.service import RestaurantService
 
@@ -16,7 +17,7 @@ class SubscriptionEnforcementService:
     def is_trial_valid(restaurant: Restaurant) -> bool:
         if restaurant.trial_ends_at is None:
             return False
-        return datetime.utcnow() < restaurant.trial_ends_at
+        return utc_now().replace(tzinfo=None) < restaurant.trial_ends_at
 
     @staticmethod
     def is_subscription_operational(restaurant: Restaurant) -> bool:

@@ -7,6 +7,7 @@ from datetime import datetime
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.core.response import success_response, error_response
+from app.core.timezone import ist_now_iso
 from app.modules.kds.schema import (
     KitchenStationCreate,
     KitchenStationUpdate,
@@ -621,7 +622,7 @@ async def print_kot(
             "station": station.name,
             "format": format,
             "content_type": content_type,
-            "printed_at": datetime.utcnow().isoformat(),
+            "printed_at": ist_now_iso(),
             "content": content if format == "json" else f"Content ready ({len(str(content))} chars)"
         },
         message=f"KOT printed successfully in {format} format"
@@ -664,7 +665,7 @@ async def websocket_station(
             if data.get("type") == "ping":
                 await websocket.send_json({
                     "type": "pong",
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": ist_now_iso()
                 })
             elif data.get("type") == "status_update":
                 # Broadcast status update to POS and other stations
@@ -718,7 +719,7 @@ async def websocket_pos(
             if data.get("type") == "ping":
                 await websocket.send_json({
                     "type": "pong",
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": ist_now_iso()
                 })
     
     except WebSocketDisconnect:
@@ -754,7 +755,7 @@ async def websocket_admin(websocket: WebSocket):
             if data.get("type") == "ping":
                 await websocket.send_json({
                     "type": "pong",
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": ist_now_iso()
                 })
     
     except WebSocketDisconnect:

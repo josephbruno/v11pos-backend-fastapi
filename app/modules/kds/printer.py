@@ -4,6 +4,7 @@ Handles printing of kitchen order tickets for different stations
 """
 from typing import Optional, List, Dict
 from datetime import datetime
+from app.core.database import utc_now_naive
 from app.modules.kds.model import KitchenDisplay, KitchenDisplayItem, KitchenStation
 from app.modules.order.model import Order
 
@@ -120,7 +121,7 @@ class KOTPrinter:
         
         lines.append("")
         lines.append("=" * width)
-        lines.append(f"Printed: {datetime.utcnow().strftime('%Y-%m-%d %I:%M %p')}")
+        lines.append(f"Printed: {utc_now_naive().strftime('%Y-%m-%d %I:%M %p')}")
         lines.append("=" * width)
         
         # Footer spacing for cut
@@ -300,7 +301,7 @@ class KOTPrinter:
         # Footer
         html += f"""
     <div class="footer">
-        Printed: {datetime.utcnow().strftime('%Y-%m-%d %I:%M %p')}
+        Printed: {utc_now_naive().strftime('%Y-%m-%d %I:%M %p')}
     </div>
 </body>
 </html>
@@ -319,7 +320,7 @@ class KOTPrinter:
         """
         return {
             "kot_id": f"KOT-{display.id}",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": utc_now_naive().isoformat(),
             "station": {
                 "id": station.id,
                 "name": station.name,

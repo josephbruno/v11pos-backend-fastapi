@@ -1,10 +1,12 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
+import uuid
 
 from app.core.config import settings
+from app.core.health import check_database, check_redis
 from app.core.logging_config import configure_customer_auth_logging
 from app.core.database import init_db, close_db
 from app.core.response import (
@@ -89,11 +91,20 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.is_development else [],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def request_id_middleware(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    request.state.request_id = request_id
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    return response
 
 app.add_exception_handler(RequestValidationError, request_validation_exception_handler)
 
@@ -120,6 +131,33 @@ async def health_check():
             "status": "healthy",
             "environment": settings.APP_ENV
         }
+    )
+
+
+@app.get("/health/ready", tags=["Health"])
+async def readiness_check():
+    """Readiness probe — verifies database and Redis connectivity."""
+    db_ok, db_msg = await check_database()
+    redis_ok, redis_msg = check_redis()
+    healthy = db_ok and redis_ok
+    payload = {
+        "status": "ready" if healthy else "degraded",
+        "checks": {
+            "database": {"ok": db_ok, "detail": db_msg},
+            "redis": {"ok": redis_ok, "detail": redis_msg},
+        },
+        "environment": settings.APP_ENV,
+        "timezone": settings.APP_TIMEZONE,
+    }
+    return JSONResponse(
+        content={
+            "success": healthy,
+            "status_code": 200 if healthy else 503,
+            "message": "Service is ready" if healthy else "Service dependencies unavailable",
+            "data": payload,
+            "error": None,
+        },
+        status_code=200 if healthy else 503,
     )
 
 

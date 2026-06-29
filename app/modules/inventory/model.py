@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Optional
 import uuid
 import enum
-from app.core.database import Base
+from app.core.database import Base, utc_now_naive
 
 
 class UnitOfMeasure(str, enum.Enum):
@@ -127,11 +127,11 @@ class Ingredient(Base):
     created_by: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
     
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
         nullable=False
     )
     
@@ -184,11 +184,11 @@ class Recipe(Base):
     created_by: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
     
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
         nullable=False
     )
     
@@ -229,11 +229,11 @@ class RecipeIngredient(Base):
     display_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
         nullable=False
     )
     
@@ -267,7 +267,7 @@ class StockTransaction(Base):
         index=True
     )
     transaction_number: Mapped[str] = mapped_column(String(50), nullable=False, unique=True, index=True)
-    transaction_date: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    transaction_date: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False, index=True)
     
     # Quantity
     quantity: Mapped[float] = mapped_column(Numeric(15, 3), nullable=False)  # Positive for IN, can be negative
@@ -310,11 +310,11 @@ class StockTransaction(Base):
     created_by: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
     
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
         nullable=False
     )
     
@@ -389,11 +389,11 @@ class Supplier(Base):
     created_by: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
     
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
         nullable=False
     )
     
@@ -422,7 +422,7 @@ class PurchaseOrder(Base):
     
     # Order Information
     po_number: Mapped[str] = mapped_column(String(50), nullable=False, unique=True, index=True)
-    po_date: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    po_date: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False, index=True)
     expected_delivery_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     actual_delivery_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     
@@ -460,11 +460,11 @@ class PurchaseOrder(Base):
     created_by: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
     
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
         nullable=False
     )
     
@@ -511,11 +511,11 @@ class PurchaseOrderItem(Base):
     notes: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
         nullable=False
     )
     
@@ -562,11 +562,11 @@ class LowStockAlert(Base):
     )
     
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False, index=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
         nullable=False
     )
     

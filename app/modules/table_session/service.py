@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from app.core.database import utc_now_naive
 from typing import Optional, Tuple
 
 from sqlalchemy import and_, func, select
@@ -183,7 +184,7 @@ class TableSessionService:
             table_id=payload.table_uuid,
             customer_id=payload.customer_uuid,
             status=TableSessionStatus.ACTIVE.value,
-            started_at=datetime.utcnow(),
+            started_at=utc_now_naive(),
         )
         db.add(session)
         if str(table.status) == TableStatus.AVAILABLE.value:
@@ -203,7 +204,7 @@ class TableSessionService:
         if not session or session.customer_id != customer_id or session.restaurant_id != restaurant_id:
             return False
         session.status = TableSessionStatus.CLOSED.value
-        session.closed_at = datetime.utcnow()
+        session.closed_at = utc_now_naive()
         await db.commit()
         return True
 
@@ -390,7 +391,7 @@ class TableTransferService:
             TableTransferStatus.APPROVED.value if approve else TableTransferStatus.REJECTED.value
         )
         transfer.resolved_by = resolved_by
-        transfer.resolved_at = datetime.utcnow()
+        transfer.resolved_at = utc_now_naive()
         transfer.audit_log = {
             "action": "approved" if approve else "rejected",
             "resolved_by": resolved_by,

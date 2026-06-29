@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, desc
 from typing import Optional, List
 from datetime import datetime, timedelta
+from app.core.database import utc_now_naive
 from app.modules.kds.model import (
     KitchenStation,
     KitchenDisplay,
@@ -294,7 +295,7 @@ class KDSService:
             
             # Calculate estimated prep time
             est_prep = station.average_prep_time or 15
-            due_time = datetime.utcnow() + timedelta(minutes=est_prep)
+            due_time = utc_now_naive() + timedelta(minutes=est_prep)
             
             # Get table number if applicable
             table_number = None
@@ -325,7 +326,7 @@ class KDSService:
             )
             
             if station.auto_accept_orders:
-                display.acknowledged_at = datetime.utcnow()
+                display.acknowledged_at = utc_now_naive()
                 display.acknowledged_by = user_id
             
             db.add(display)
@@ -435,7 +436,7 @@ class KDSService:
         
         if display.status == DisplayStatus.NEW:
             display.status = DisplayStatus.ACKNOWLEDGED
-            display.acknowledged_at = datetime.utcnow()
+            display.acknowledged_at = utc_now_naive()
             display.acknowledged_by = user_id
             
             await db.commit()
@@ -472,12 +473,12 @@ class KDSService:
         
         if display.status in [DisplayStatus.NEW, DisplayStatus.ACKNOWLEDGED]:
             display.status = DisplayStatus.IN_PROGRESS
-            display.started_at = datetime.utcnow()
+            display.started_at = utc_now_naive()
             display.prepared_by = user_id
             
             # Auto-acknowledge if not already
             if not display.acknowledged_at:
-                display.acknowledged_at = datetime.utcnow()
+                display.acknowledged_at = utc_now_naive()
                 display.acknowledged_by = user_id
             
             await db.commit()
@@ -512,7 +513,7 @@ class KDSService:
         
         old_status = display.status
         display.status = DisplayStatus.READY
-        display.ready_at = datetime.utcnow()
+        display.ready_at = utc_now_naive()
         
         # Calculate actual prep time
         if display.started_at:
@@ -523,7 +524,7 @@ class KDSService:
         for item in items:
             if item.status != ItemStatus.CANCELLED:
                 item.status = ItemStatus.READY
-                item.completed_at = datetime.utcnow()
+                item.completed_at = utc_now_naive()
                 if not item.prepared_by:
                     item.prepared_by = user_id
         
@@ -573,7 +574,7 @@ class KDSService:
             return None
         
         display.status = DisplayStatus.COMPLETED
-        display.completed_at = datetime.utcnow()
+        display.completed_at = utc_now_naive()
         
         await db.commit()
         await db.refresh(display)
@@ -597,7 +598,7 @@ class KDSService:
             return None
         
         old_status = item.status
-        now = datetime.utcnow()
+        now = utc_now_naive()
         item.status = new_status
         
         if new_status == ItemStatus.PREPARING and not item.started_at:

@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, desc
 from typing import Optional, List, Tuple
 from datetime import datetime, timedelta
+from app.core.database import utc_now_naive
 from app.modules.inventory.model import (
     Ingredient,
     Recipe,
@@ -326,7 +327,7 @@ class InventoryService:
         }
         
         prefix = prefix_map.get(transaction_type, "TXN")
-        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        timestamp = utc_now_naive().strftime("%Y%m%d%H%M%S")
         
         # Get count for today to avoid duplicates
         count_result = await db.execute(
@@ -569,7 +570,7 @@ class InventoryService:
     @staticmethod
     async def generate_po_number(db: AsyncSession) -> str:
         """Generate unique PO number"""
-        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        timestamp = utc_now_naive().strftime("%Y%m%d%H%M%S")
         
         # Get count for today
         count_result = await db.execute(
@@ -712,7 +713,7 @@ class InventoryService:
         
         if all(item.is_fully_received for item in all_items):
             po.status = PurchaseOrderStatus.RECEIVED
-            po.actual_delivery_date = datetime.utcnow()
+            po.actual_delivery_date = utc_now_naive()
         else:
             po.status = PurchaseOrderStatus.PARTIALLY_RECEIVED
         
@@ -770,7 +771,7 @@ class InventoryService:
                 )
                 
                 db.add(alert)
-                ingredient.low_stock_notified_at = datetime.utcnow()
+                ingredient.low_stock_notified_at = utc_now_naive()
                 await db.commit()
                 await db.refresh(alert)
                 
@@ -820,7 +821,7 @@ class InventoryService:
             return None
         
         alert.is_resolved = True
-        alert.resolved_at = datetime.utcnow()
+        alert.resolved_at = utc_now_naive()
         alert.resolved_by = user_id
         alert.action_taken = action_taken
         alert.purchase_order_id = po_id

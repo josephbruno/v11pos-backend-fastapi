@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Optional
 import uuid
 import enum
-from app.core.database import Base
+from app.core.database import Base, utc_now_naive
 
 
 class ImportType(str, enum.Enum):
@@ -126,11 +126,11 @@ class DataImport(Base):
     import_metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False, index=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
         nullable=False
     )
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
@@ -179,7 +179,7 @@ class ImportLog(Base):
     validation_warnings: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     
     # Processing info
-    processed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    processed_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     processing_time_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     
     # Metadata
@@ -235,11 +235,11 @@ class ImportTemplate(Base):
     template_metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
         nullable=False
     )
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)

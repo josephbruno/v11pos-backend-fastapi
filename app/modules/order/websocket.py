@@ -12,6 +12,8 @@ from typing import Dict, List
 
 from fastapi import WebSocket
 
+from app.core.timezone import ist_now_iso
+
 
 def normalize_restaurant_id(restaurant_id: str) -> str:
     """Canonical key for connection map lookups (must match broadcast keys)."""
@@ -35,7 +37,7 @@ class OrderConnectionManager:
                 "type": "connection",
                 "status": "connected",
                 "restaurant_id": restaurant_id,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": ist_now_iso(),
             }
         )
 

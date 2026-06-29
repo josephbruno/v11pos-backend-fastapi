@@ -1,6 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_
 from datetime import datetime
+from app.core.database import utc_now_naive
 from typing import Optional, List, Dict, Any, BinaryIO
 import uuid
 import pandas as pd
@@ -34,7 +35,7 @@ class DataImportService:
     ) -> DataImport:
         """Create import record"""
         
-        import_number = f"IMP-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{str(uuid.uuid4())[:8]}"
+        import_number = f"IMP-{utc_now_naive().strftime('%Y%m%d%H%M%S')}-{str(uuid.uuid4())[:8]}"
         
         data_import = DataImport(
             id=str(uuid.uuid4()),
@@ -367,7 +368,7 @@ class DataImportService:
     ) -> Dict[str, Any]:
         """Import categories from DataFrame"""
         
-        start_time = datetime.utcnow()
+        start_time = utc_now_naive()
         
         # Get existing categories
         query = select(Category).where(
@@ -454,7 +455,7 @@ class DataImportService:
         
         await db.commit()
         
-        processing_time = int((datetime.utcnow() - start_time).total_seconds())
+        processing_time = int((utc_now_naive() - start_time).total_seconds())
         
         return {
             "stats": stats,
@@ -472,7 +473,7 @@ class DataImportService:
     ) -> Dict[str, Any]:
         """Import products from DataFrame"""
         
-        start_time = datetime.utcnow()
+        start_time = utc_now_naive()
         
         # Get existing categories
         category_query = select(Category).where(
@@ -588,7 +589,7 @@ class DataImportService:
         
         await db.commit()
         
-        processing_time = int((datetime.utcnow() - start_time).total_seconds())
+        processing_time = int((utc_now_naive() - start_time).total_seconds())
         
         return {
             "stats": stats,

@@ -31,7 +31,7 @@ from app.modules.row_management.service import RowManagementService
 from app.modules.restaurant.schema import RestaurantResponse
 from app.modules.restaurant.service import RestaurantService
 from app.modules.table.model import TableStatus
-from app.modules.table.schema import TableResponse
+from app.modules.table.schema import TableResponse, TableBookingCreate
 from app.modules.table.service import TableService
 from app.modules.table_session.service import TableSessionService
 
@@ -279,6 +279,77 @@ async def fetch_restaurant_details(
     except Exception as e:
         return error_response(
             message="Failed to retrieve restaurant",
+            error_code="INTERNAL_ERROR",
+            error_details=str(e),
+        )
+
+
+@router.post("/tables/{table_id}/book")
+async def book_table(
+    table_id: str,
+    booking: TableBookingCreate,
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a customer table reservation (public, no auth)."""
+    try:
+        table = await TableService.get_table_by_id(db, table_id)
+        if not table:
+            return error_response(
+                message="Table not found",
+                error_code="NOT_FOUND",
+                status_code=404,
+            )
+
+        restaurant = await RestaurantService.get_restaurant_by_id(db, table.restaurant_id)
+        if not restaurant:
+            return error_response(
+                message="Restaurant not found",
+                error_code="NOT_FOUND",
+                status_code=404,
+            )
+
+        if not restaurant.enable_table_booking:
+            return error_response(
+                message="Table booking is not enabled for this restaurant",
+                error_code="BOOKING_DISABLED",
+                status_code=403,
+            )
+
+        if booking.party_size > table.capacity:
+            return error_response(
+                message="Party size exceeds table capacity",
+                error_code="CAPACITY_EXCEEDED",
+                status_code=400,
+            )
+
+        if table.min_capacity is not None and booking.party_size < table.min_capacity:
+            return error_response(
+                message=f"Minimum party size for this table is {table.min_capacity}",
+                error_code="MIN_CAPACITY",
+                status_code=400,
+            )
+
+        updated = await TableService.book_table_for_customer(
+            db,
+            table_id,
+            booking,
+            booking_enabled=restaurant.enable_table_booking,
+        )
+
+        if not updated:
+            return error_response(
+                message="Table is not available for booking",
+                error_code="TABLE_UNAVAILABLE",
+                status_code=409,
+            )
+
+        return success_response(
+            message="Table booked successfully",
+            data=TableResponse.model_validate(updated).model_dump(),
+        )
+    except Exception as e:
+        return error_response(
+            message="Failed to book table",
             error_code="INTERNAL_ERROR",
             error_details=str(e),
         )

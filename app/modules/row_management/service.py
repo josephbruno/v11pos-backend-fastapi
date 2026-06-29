@@ -2,6 +2,7 @@
 Row management service layer
 """
 from datetime import datetime
+from app.core.database import utc_now_naive
 from typing import List, Optional, TypeVar
 
 from sqlalchemy import func, select
@@ -260,6 +261,6 @@ class RowManagementService:
         if not row:
             return False
 
-        row.deleted_at = datetime.utcnow()
+        row.deleted_at = utc_now_naive()
         await db.commit()
         return True

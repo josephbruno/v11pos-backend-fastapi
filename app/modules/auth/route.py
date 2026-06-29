@@ -3,6 +3,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from app.core.database import get_db
 from app.core.dependencies import get_current_active_user
+from app.core.rate_limit import (
+    login_rate_limiter,
+    password_reset_rate_limiter,
+    rate_limit_dependency,
+)
 from app.core.response import success_response, error_response
 from app.modules.auth.schema import (
     LoginRequest,
@@ -80,7 +85,8 @@ def parse_user_agent(user_agent: str) -> dict:
 @router.post("/login", response_model=None)
 async def login(
     request: Request,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit_dependency(login_rate_limiter)),
 ):
     """
     Authenticate user and get access + refresh tokens
@@ -225,7 +231,8 @@ async def refresh_token(
 async def forgot_password(
     forgot_data: ForgotPasswordRequest,
     request: Request,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit_dependency(password_reset_rate_limiter)),
 ):
     """
     Request a 6-digit password reset OTP. The OTP is emailed to the user.

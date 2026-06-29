@@ -2,10 +2,13 @@
 
 from datetime import date, datetime, time, timezone, timedelta
 from typing import Annotated, Any, Optional, Union
+from zoneinfo import ZoneInfo
 
 from pydantic import BeforeValidator
 
-IST = timezone(timedelta(hours=5, minutes=30))
+from app.core.config import settings
+
+IST = ZoneInfo(settings.APP_TIMEZONE)
 
 
 def parse_query_date(value: Any) -> Optional[Union[date, datetime]]:

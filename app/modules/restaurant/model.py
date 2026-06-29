@@ -8,7 +8,7 @@ from typing import Optional, List
 import uuid
 import enum
 
-from app.core.database import Base
+from app.core.database import Base, utc_now_naive
 
 
 class BusinessType(str, enum.Enum):
@@ -217,11 +217,11 @@ class Restaurant(Base):
     onboarding_step: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     
     # Metadata
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False, index=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
         nullable=False
     )
     last_activity: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
@@ -271,8 +271,8 @@ class RestaurantOwner(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     
     # Metadata
-    joined_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    joined_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     
     def __repr__(self):
         return f"<RestaurantOwner(restaurant_id={self.restaurant_id}, user_id={self.user_id}, role='{self.role}')>"
@@ -322,11 +322,11 @@ class SubscriptionPlan(Base):
     razorpay_plan_id_yearly: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     
     # Metadata
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
         nullable=False
     )
     
@@ -367,7 +367,7 @@ class Subscription(Base):
     billing_cycle: Mapped[str] = mapped_column(String(20), default='monthly', nullable=False)
     
     # Dates
-    started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     current_period_start: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     current_period_end: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     trial_end: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
@@ -392,11 +392,11 @@ class Subscription(Base):
     
     # Metadata
     extra_data: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
         nullable=False
     )
     
@@ -444,7 +444,7 @@ class Invoice(Base):
     )
     
     # Dates
-    invoice_date: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    invoice_date: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     due_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     paid_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     
@@ -459,11 +459,11 @@ class Invoice(Base):
     # Metadata
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     extra_data: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
         nullable=False
     )
     
@@ -512,7 +512,7 @@ class RestaurantInvitation(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     
     # Metadata
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     
     def __repr__(self):
         return f"<RestaurantInvitation(email='{self.email}', restaurant_id={self.restaurant_id}, status='{self.status}')>"

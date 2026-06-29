@@ -5,7 +5,8 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
-from app.core.timezone import convert_datetime_fields, get_utc_now
+from app.core.config import settings
+from app.core.timezone import convert_datetime_fields, get_ist_now, ist_now_iso
 
 
 class ErrorDetail(BaseModel):
@@ -64,9 +65,10 @@ def success_response(
             "timestamp": "2024-01-01T12:00:00.000Z"
         }
     """
-    # Convert datetime fields to restaurant timezone if specified
-    if timezone and data:
-        data = convert_datetime_fields(data, timezone)
+    # Convert datetime fields to IST when data is present (storage is UTC).
+    tz = timezone or settings.APP_TIMEZONE
+    if data and tz:
+        data = convert_datetime_fields(data, tz)
     
     response = {
         "success": True,
@@ -74,7 +76,7 @@ def success_response(
         "message": message,
         "data": jsonable_encoder(data),
         "error": None,
-        "timestamp": get_utc_now().isoformat()
+        "timestamp": ist_now_iso()
     }
     
     if meta:
@@ -129,7 +131,7 @@ def error_response(
             "details": error_details,
             "field": field
         },
-        "timestamp": datetime.utcnow().isoformat() + "Z"
+        "timestamp": ist_now_iso()
     }
     
     return JSONResponse(content=response_content, status_code=status_code)
@@ -196,7 +198,7 @@ def validation_error_response(
             "details": "One or more fields contain invalid data",
             "errors": errors or []
         },
-        "timestamp": datetime.utcnow().isoformat() + "Z"
+        "timestamp": ist_now_iso()
     }
     
     return JSONResponse(content=response_content, status_code=status_code)

@@ -76,3 +76,15 @@ class TableListResponse(BaseModel):
 class TableStatusUpdate(BaseModel):
     """Schema for updating table status only"""
     status: TableStatus
+
+
+class TableBookingCreate(BaseModel):
+    """Customer table reservation request (open/public)."""
+    customer_name: str = Field(..., min_length=1, max_length=100)
+    customer_email: Optional[str] = Field(None, max_length=255)
+    customer_phone: Optional[str] = Field(None, max_length=30)
+    party_size: int = Field(..., ge=1, le=100)
+    booking_date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$")
+    booking_time: str = Field(..., min_length=4, max_length=5)
+    occasion: Optional[str] = Field(None, max_length=100)
+    special_requests: Optional[str] = Field(None, max_length=500)

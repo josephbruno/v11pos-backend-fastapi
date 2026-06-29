@@ -4,6 +4,7 @@ import random
 import smtplib
 import ssl
 from datetime import datetime
+from app.core.database import utc_now_naive
 from email.message import EmailMessage
 from email.utils import formataddr
 from typing import Optional
@@ -88,7 +89,7 @@ class CustomerAuthService:
             .limit(1)
         )
         last_otp = last.scalar_one_or_none()
-        now = datetime.utcnow()
+        now = utc_now_naive()
         if last_otp and (now - last_otp.created_at).total_seconds() < CustomerAuthService.OTP_RESEND_MIN_SECONDS:
             raise CustomerAuthError(
                 "Please wait before requesting another OTP",
@@ -119,7 +120,7 @@ class CustomerAuthService:
     async def verify_email_otp(
         db: AsyncSession, email: str, restaurant_id: str, otp: str
     ) -> Customer:
-        now = datetime.utcnow()
+        now = utc_now_naive()
         result = await db.execute(
             select(CustomerEmailOTP)
             .where(

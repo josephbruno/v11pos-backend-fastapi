@@ -1,8 +1,9 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_
 from typing import Optional, List
+import json
 from app.modules.table.model import Table, TableStatus
-from app.modules.table.schema import TableCreate, TableUpdate
+from app.modules.table.schema import TableCreate, TableUpdate, TableBookingCreate
 
 
 class TableService:
@@ -397,3 +398,60 @@ class TableService:
         
         await db.commit()
         return count
+
+    BOOKING_NOTES_PREFIX = "swiftpos_booking:"
+
+    @staticmethod
+    def _encode_customer_booking_notes(booking: TableBookingCreate) -> str:
+        payload = {
+            "customer_name": booking.customer_name,
+            "customer_phone": booking.customer_phone,
+            "customer_email": booking.customer_email,
+            "party_size": booking.party_size,
+            "booking_date": booking.booking_date,
+            "booking_time": booking.booking_time,
+            "occasion": booking.occasion,
+            "special_requests": booking.special_requests,
+            "booking_status": "pending",
+            "booking_source": "customer",
+        }
+        return (
+            f"{TableService.BOOKING_NOTES_PREFIX}"
+            f"{json.dumps(payload, separators=(',', ':'))}"
+        )
+
+    @staticmethod
+    async def book_table_for_customer(
+        db: AsyncSession,
+        table_id: str,
+        booking: TableBookingCreate,
+        *,
+        booking_enabled: bool,
+    ) -> Optional[Table]:
+        if not booking_enabled:
+            return None
+
+        table = await TableService.get_table_by_id(db, table_id)
+        if not table:
+            return None
+
+        if not table.is_active or not table.is_bookable:
+            return None
+
+        if table.status != TableStatus.AVAILABLE:
+            return None
+
+        if booking.party_size > table.capacity:
+            return None
+
+        if table.min_capacity is not None and booking.party_size < table.min_capacity:
+            return None
+
+        return await TableService.update_table(
+            db,
+            table_id,
+            TableUpdate(
+                status=TableStatus.RESERVED,
+                notes=TableService._encode_customer_booking_notes(booking),
+            ),
+        )

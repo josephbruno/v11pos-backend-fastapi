@@ -1,3 +1,4 @@
+from app.core.database import utc_now_naive
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -37,7 +38,7 @@ class UserService:
             restaurant_id=user_data.restaurant_id,
             role=user_data.role if user_data.role else 'staff',
             avatar=user_data.avatar,
-            join_date=datetime.utcnow()  # Set join date on creation
+            join_date=utc_now_naive()  # Set join date on creation
         )
         
         db.add(db_user)
@@ -238,7 +239,7 @@ class UserService:
             return None
         
         # Update last login timestamp
-        user.last_login = datetime.utcnow()
+        user.last_login = utc_now_naive()
         await db.commit()
         await db.refresh(user)
         

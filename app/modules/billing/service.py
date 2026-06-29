@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timedelta
+from app.core.database import utc_now_naive
 from typing import Any, Optional
 
 from sqlalchemy import and_, select
@@ -128,7 +129,7 @@ class BillingService:
             },
         )
 
-        now = datetime.utcnow()
+        now = utc_now_naive()
         period_end = now + timedelta(days=30 if billing_cycle == "monthly" else 365)
 
         subscription = Subscription(
@@ -180,7 +181,7 @@ class BillingService:
         if not restaurant:
             raise ValueError("Restaurant not found")
 
-        now = datetime.utcnow()
+        now = utc_now_naive()
         period_end = now + timedelta(days=30 if billing_cycle == "monthly" else 365)
 
         subscription = Subscription(
@@ -211,6 +212,8 @@ class BillingService:
         payload = event.get("payload", {})
 
         if event_type == "subscription.activated":
+            await BillingService._on_subscription_activated(db, payload)
+        elif event_type == "subscription.authenticated":
             await BillingService._on_subscription_activated(db, payload)
         elif event_type == "subscription.charged":
             await BillingService._on_subscription_charged(db, payload)
@@ -260,8 +263,16 @@ class BillingService:
         if not subscription:
             return
 
+        payment_id = payment.get("id")
+        if payment_id:
+            existing = await db.execute(
+                select(Invoice).where(Invoice.payment_gateway_charge_id == payment_id)
+            )
+            if existing.scalar_one_or_none():
+                return
+
         amount = int(payment.get("amount", 0))
-        subscription.last_payment_date = datetime.utcnow()
+        subscription.last_payment_date = utc_now_naive()
         subscription.status = SubscriptionStatus.ACTIVE
 
         invoice_data = InvoiceCreate(
@@ -273,7 +284,13 @@ class BillingService:
             currency="INR",
             description=f"Subscription charge — {subscription.plan_name}",
         )
-        await InvoiceService.create_invoice(db, invoice_data)
+        invoice = await InvoiceService.create_invoice(db, invoice_data)
+        await InvoiceService.mark_invoice_paid(
+            db,
+            invoice.id,
+            payment_method="razorpay",
+            payment_gateway_charge_id=payment_id,
+        )
 
         plan = await SubscriptionPlanService.get_plan_by_name(db, subscription.plan.value)
         if plan:
@@ -300,7 +317,7 @@ class BillingService:
             if event_type == "subscription.cancelled"
             else SubscriptionStatus.SUSPENDED
         )
-        subscription.ended_at = datetime.utcnow()
+        subscription.ended_at = utc_now_naive()
 
         restaurant = await RestaurantService.get_restaurant_by_id(db, subscription.restaurant_id)
         if restaurant:

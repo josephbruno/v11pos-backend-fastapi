@@ -5,7 +5,7 @@ from sqlalchemy import DateTime, ForeignKey, Integer, String
 from typing import Optional
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.database import Base
+from app.core.database import Base, utc_now_naive
 
 
 class CustomerEmailOTP(Base):
@@ -32,12 +32,12 @@ class CustomerEmailOTP(Base):
 
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
     consumed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False, index=True)
 
     customer = relationship("Customer")
 
     @staticmethod
     def default_expiry(now: Optional[datetime] = None) -> datetime:
-        base = now or datetime.utcnow()
+        base = now or utc_now_naive()
         return base + timedelta(minutes=10)
 

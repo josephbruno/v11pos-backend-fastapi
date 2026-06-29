@@ -26,8 +26,13 @@ AsyncSessionLocal = async_sessionmaker(
 
 
 def utc_now():
-    """Get current UTC datetime"""
+    """Get current UTC datetime (timezone-aware)."""
     return datetime.now(timezone.utc)
+
+
+def utc_now_naive() -> datetime:
+    """UTC naive datetime for MySQL DateTime columns and comparisons."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class Base(DeclarativeBase):

@@ -3,6 +3,7 @@ from sqlalchemy import select, func, and_, or_, desc
 from sqlalchemy.orm import selectinload
 from typing import Optional, List
 from datetime import datetime, timedelta
+from app.core.database import utc_now_naive
 from app.modules.order.model import Order, OrderItem, OrderType, OrderStatus, PaymentStatus
 from app.modules.order.schema import OrderCreate, OrderUpdate, OrderItemCreate, OrderItemUpdate
 import random
@@ -349,7 +350,7 @@ class OrderService:
         # Handle status changes with timestamps
         if "status" in update_data:
             new_status = update_data["status"]
-            now = datetime.utcnow()
+            now = utc_now_naive()
             
             if new_status == OrderStatus.CONFIRMED and not order.confirmed_at:
                 order.confirmed_at = now
@@ -543,7 +544,7 @@ class OrderService:
             return None
         
         order.status = OrderStatus.CANCELLED
-        order.cancelled_at = datetime.utcnow()
+        order.cancelled_at = utc_now_naive()
         if reason:
             order.staff_notes = f"{order.staff_notes or ''}\nCancellation reason: {reason}".strip()
         

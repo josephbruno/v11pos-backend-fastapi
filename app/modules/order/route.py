@@ -8,9 +8,10 @@ from app.core.query_datetime import (
     to_query_end_datetime,
     to_query_start_datetime,
 )
-from app.core.database import get_db, AsyncSessionLocal
+from app.core.database import get_db, AsyncSessionLocal, utc_now_naive
 from app.core.dependencies import get_current_user
 from app.core.response import success_response, error_response
+from app.core.timezone import ist_now_iso
 from app.modules.order.schema import (
     OrderCreate,
     OrderUpdate,
@@ -69,7 +70,7 @@ async def _send_orders_snapshot(websocket: WebSocket, restaurant_id: str) -> Non
             "type": "orders_snapshot",
             "restaurant_id": restaurant_id,
             "orders": orders_payload,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": ist_now_iso(),
         }
     )
 
@@ -99,7 +100,7 @@ async def websocket_orders(websocket: WebSocket, restaurant_id: str):
                 await websocket.send_json(
                     {
                         "type": "pong",
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": ist_now_iso(),
                     }
                 )
     except WebSocketDisconnect:
@@ -151,7 +152,7 @@ async def create_order(
                     "restaurant_id": str(order_data.restaurant_id),
                     "order_id": str(order.id),
                     "order": order_response.model_dump(mode="json"),
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": ist_now_iso(),
                 },
             )
         except Exception:
@@ -348,7 +349,7 @@ async def update_order(
                 "restaurant_id": str(order.restaurant_id),
                 "order_id": str(order.id),
                 "order": order_response.model_dump(mode="json"),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": ist_now_iso(),
             },
         )
     except Exception:
@@ -397,7 +398,7 @@ async def update_order_status(
                 "order_id": str(order.id),
                 "status": status_data.status.value,
                 "order": order_response.model_dump(mode="json"),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": ist_now_iso(),
             },
         )
     except Exception:
@@ -473,7 +474,7 @@ async def update_order_payment(
         if is_pos_source and order.status != OrderStatus.COMPLETED.value:
             order.status = OrderStatus.COMPLETED.value
             if not order.completed_at:
-                order.completed_at = datetime.utcnow()
+                order.completed_at = utc_now_naive()
             db.add(order)
 
     await db.commit()

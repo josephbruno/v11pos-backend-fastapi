@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List, Any, Dict
 from datetime import datetime, timedelta
 
-from app.core.database import get_db
+from app.core.database import get_db, utc_now_naive
 from app.core.dependencies import get_current_user
 from app.core.response import success_response, error_response
 from app.modules.reports.schema import (
@@ -338,7 +338,7 @@ async def generate_item_wise_report(
             to_date = datetime.fromisoformat(body.end_date.replace("Z", ""))
 
     if not from_date or not to_date:
-        to_date = to_date or datetime.utcnow()
+        to_date = to_date or utc_now_naive()
         from_date = from_date or (to_date - timedelta(days=30))
     
     reports = await ItemWiseSalesReportService.generate_item_wise_report(
@@ -458,7 +458,7 @@ async def generate_category_wise_report(
             to_date = datetime.fromisoformat(body.end_date.replace("Z", ""))
 
     if not from_date or not to_date:
-        to_date = to_date or datetime.utcnow()
+        to_date = to_date or utc_now_naive()
         from_date = from_date or (to_date - timedelta(days=30))
     
     reports = await CategoryWiseSalesReportService.generate_category_wise_report(
@@ -598,12 +598,44 @@ async def get_tax_gst_report(
         if restaurant_id and restaurant_id != user_restaurant_id:
             raise HTTPException(status_code=403, detail="Access denied")
         restaurant_id = user_restaurant_id
-    
-    # TODO: Implement tax report service
-    
+
+    if not restaurant_id:
+        raise HTTPException(status_code=400, detail="restaurant_id is required")
+
+    from sqlalchemy import select, and_
+    from app.modules.order.model import Order
+
+    query = select(Order).where(
+        and_(
+            Order.restaurant_id == restaurant_id,
+            Order.created_at >= from_date,
+            Order.created_at <= to_date,
+            Order.deleted_at.is_(None),
+        )
+    )
+    result = await db.execute(query)
+    orders = list(result.scalars().all())
+    metrics = await SalesReportService._calculate_sales_metrics(
+        db, orders, from_date, to_date, restaurant_id
+    )
+
     return success_response(
         message="Tax report retrieved successfully",
-        data={"message": "Tax (GST) report - to be implemented"}
+        data={
+            "from_date": from_date.isoformat(),
+            "to_date": to_date.isoformat(),
+            "restaurant_id": restaurant_id,
+            "total_tax": metrics["total_tax"],
+            "cgst_amount": metrics["cgst_amount"],
+            "sgst_amount": metrics["sgst_amount"],
+            "igst_amount": metrics["igst_amount"],
+            "vat_amount": metrics.get("vat_amount", 0),
+            "service_tax": metrics.get("service_tax", 0),
+            "taxable_sales": metrics.get("gross_sales", 0),
+            "net_sales": metrics.get("net_sales", 0),
+            "completed_orders": metrics["completed_orders"],
+            "total_orders": metrics["total_orders"],
+        },
     )
 
 
@@ -717,7 +749,7 @@ async def get_super_admin_dashboard(
     
     # Set default date range if not provided
     if not to_date:
-        to_date = datetime.utcnow()
+        to_date = utc_now_naive()
     if not from_date:
         from_date = to_date - timedelta(days=30)
     

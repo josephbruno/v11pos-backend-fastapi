@@ -8,7 +8,7 @@ from typing import Optional, List
 import uuid
 import enum
 
-from app.core.database import Base
+from app.core.database import Base, utc_now_naive
 
 
 class ModifierType(str, enum.Enum):
@@ -122,11 +122,11 @@ class Category(Base):
     external_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
         nullable=False
     )
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)  # Soft delete
@@ -316,11 +316,11 @@ class Product(Base):
     admin_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
         nullable=False
     )
     published_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
@@ -354,11 +354,11 @@ class Modifier(Base):
     max_selections: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     # Media
     icon_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
         nullable=False
     )
     # Relationships
@@ -389,11 +389,11 @@ class ModifierOption(Base):
     price: Mapped[int] = mapped_column(Integer, default=0, nullable=False)  # In paise/cents
     available: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
         nullable=False
     )
     # Relationships
@@ -424,7 +424,7 @@ class ProductModifier(Base):
         ForeignKey("modifiers.id", ondelete="CASCADE"),
         nullable=False
     )
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     
     def __repr__(self):
         return f"<ProductModifier(product_id={self.product_id}, modifier_id={self.modifier_id})>"
@@ -458,11 +458,11 @@ class ComboProduct(Base):
     valid_from: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     valid_until: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     max_quantity_per_order: Mapped[int] = mapped_column(Integer, default=10, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
         nullable=False
     )
     
@@ -497,7 +497,7 @@ class ComboItem(Base):
     choice_group: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     choices: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     
     def __repr__(self):
         return f"<ComboItem(combo_id={self.combo_id}, product_id={self.product_id}, qty={self.quantity})>"
@@ -534,7 +534,7 @@ class InventoryTransaction(Base):
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True
     )
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False, index=True)
     
     def __repr__(self):
         return f"<InventoryTransaction(id={self.id}, product_id={self.product_id}, type='{self.type}', qty={self.quantity})>"
@@ -556,11 +556,11 @@ class CategoryTranslation(Base):
     language_code: Mapped[str] = mapped_column(String(5), nullable=False, index=True)  # en, ta, hi, fr
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
         nullable=False
     )
     
@@ -582,11 +582,11 @@ class ProductTranslation(Base):
     language_code: Mapped[str] = mapped_column(String(5), nullable=False, index=True)  # en, ta, hi, fr
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
         nullable=False
     )
     
@@ -607,11 +607,11 @@ class ModifierTranslation(Base):
     )
     language_code: Mapped[str] = mapped_column(String(5), nullable=False, index=True)  # en, ta, hi, fr
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
         nullable=False
     )
     
@@ -632,11 +632,11 @@ class ModifierOptionTranslation(Base):
     )
     language_code: Mapped[str] = mapped_column(String(5), nullable=False, index=True)  # en, ta, hi, fr
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
         nullable=False
     )
     
@@ -658,11 +658,11 @@ class ComboProductTranslation(Base):
     language_code: Mapped[str] = mapped_column(String(5), nullable=False, index=True)  # en, ta, hi, fr
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
         nullable=False
     )
     

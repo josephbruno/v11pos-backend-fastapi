@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from app.core.database import utc_now_naive
 from typing import Any, Dict, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,7 +48,7 @@ async def init_phonepe_payment(
         "customer_id": customer.id,
         "restaurant_id": restaurant_id,
         "mobile_number": payload.get("mobile_number"),
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": utc_now_naive().isoformat(),
     }
 
     # Development: bounce back to client checkout for status verification

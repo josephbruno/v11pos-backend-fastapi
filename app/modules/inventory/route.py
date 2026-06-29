@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
 from datetime import datetime
-from app.core.database import get_db
+from app.core.database import get_db, utc_now_naive
 from app.core.dependencies import get_current_user
 from app.core.response import success_response, error_response
 from app.modules.inventory.schema import (
@@ -767,9 +767,9 @@ async def update_purchase_order_status(
         # Update dates based on status
         if status == PurchaseOrderStatus.APPROVED:
             po.approved_by = current_user.id
-            po.approved_at = datetime.utcnow()
+            po.approved_at = utc_now_naive()
         elif status == PurchaseOrderStatus.RECEIVED:
-            po.actual_delivery_date = datetime.utcnow()
+            po.actual_delivery_date = utc_now_naive()
         
         await db.commit()
         await db.refresh(po)

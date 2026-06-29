@@ -2,7 +2,7 @@ from sqlalchemy import String, Boolean, DateTime, Integer, Text, Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column
 from datetime import datetime, timedelta
 from typing import Optional
-from app.core.database import Base
+from app.core.database import Base, utc_now_naive
 import enum
 
 
@@ -33,7 +33,7 @@ class LoginLog(Base):
     email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     ip_address: Mapped[str] = mapped_column(String(45), nullable=False)  # IPv6 max length
     device_type: Mapped[str] = mapped_column(String(100), nullable=False)
-    attempted_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    attempted_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False, index=True)
     
     # Status and reason
     status: Mapped[LoginAttemptStatus] = mapped_column(
@@ -75,13 +75,13 @@ class PasswordResetOTP(Base):
     otp_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     consumed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
 
     @staticmethod
     def default_expiry(now: Optional[datetime] = None) -> datetime:
-        base = now or datetime.utcnow()
+        base = now or utc_now_naive()
         return base + timedelta(seconds=PasswordResetOTP.OTP_TTL_SECONDS)
 
     def __repr__(self) -> str:

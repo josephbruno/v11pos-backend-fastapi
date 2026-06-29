@@ -1,7 +1,10 @@
-from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator, model_validator
 from datetime import datetime
 from typing import Optional, List, Dict
 from enum import Enum
+
+from app.core.timezone import APP_TIMEZONE
+from app.core.gst import normalize_gstin, normalize_pan, validate_gst_rates
 
 
 class BusinessType(str, Enum):
@@ -64,8 +67,8 @@ class RestaurantBase(BaseModel):
     fssai_license: Optional[str] = Field(None, max_length=14)
     pan_number: Optional[str] = Field(None, max_length=10)
     
-    # Settings
-    timezone: str = "Asia/Kolkata"
+    # Settings — application is IST-only
+    timezone: str = APP_TIMEZONE
     currency: str = "INR"
     language: str = "en"
     
@@ -151,6 +154,31 @@ class RestaurantBase(BaseModel):
         if isinstance(v, str):
             return v.lower()
         return v
+
+    @field_validator('timezone', mode='before')
+    @classmethod
+    def enforce_ist_timezone(cls, v):
+        return APP_TIMEZONE
+
+    @field_validator('gstin', mode='before')
+    @classmethod
+    def validate_gstin_field(cls, v):
+        return normalize_gstin(v)
+
+    @field_validator('pan_number', mode='before')
+    @classmethod
+    def validate_pan_field(cls, v):
+        return normalize_pan(v)
+
+    @model_validator(mode='after')
+    def validate_gst_configuration(self):
+        validate_gst_rates(
+            enable_gst=self.enable_gst,
+            cgst_rate=self.cgst_rate,
+            sgst_rate=self.sgst_rate,
+            igst_rate=self.igst_rate,
+        )
+        return self
 
 
 class RestaurantCreate(RestaurantBase):
@@ -262,6 +290,23 @@ class RestaurantUpdate(BaseModel):
     enable_kds: Optional[bool] = None
     auto_accept_orders: Optional[bool] = None
     preparation_time_buffer: Optional[int] = None
+
+    @field_validator('gstin', mode='before')
+    @classmethod
+    def validate_gstin_field(cls, v):
+        return normalize_gstin(v)
+
+    @field_validator('pan_number', mode='before')
+    @classmethod
+    def validate_pan_field(cls, v):
+        return normalize_pan(v)
+
+    @field_validator('timezone', mode='before')
+    @classmethod
+    def enforce_ist_timezone(cls, v):
+        if v is None:
+            return None
+        return APP_TIMEZONE
 
 
 class RestaurantResponse(BaseModel):

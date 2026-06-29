@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from typing import Optional, Dict, List
 from datetime import datetime, timedelta
+from app.core.database import utc_now_naive
 from app.modules.user.service import UserService
 from app.core.security import create_access_token, create_refresh_token, decode_token, get_password_hash, verify_password
 from app.modules.user.model import User
@@ -128,7 +129,7 @@ class LoginLogService:
         Returns:
             Number of failed attempts
         """
-        since_time = datetime.utcnow() - timedelta(minutes=since_minutes)
+        since_time = utc_now_naive() - timedelta(minutes=since_minutes)
         
         result = await db.execute(
             select(LoginLog)
@@ -513,7 +514,7 @@ class PasswordResetService:
         Enforces a 60-second resend cooldown.
         Returns (otp_plain, expires_in_seconds).
         """
-        now = datetime.utcnow()
+        now = utc_now_naive()
 
         # Rate-limit check
         result = await db.execute(
@@ -550,7 +551,7 @@ class PasswordResetService:
         Verify OTP without consuming it (pre-check). Returns True if valid.
         Raises ValueError on invalid/expired OTP.
         """
-        now = datetime.utcnow()
+        now = utc_now_naive()
         result = await db.execute(
             select(PasswordResetOTP)
             .where(
@@ -582,7 +583,7 @@ class PasswordResetService:
         Verify OTP, consume it, and update user's password.
         Returns the updated User on success.
         """
-        now = datetime.utcnow()
+        now = utc_now_naive()
         result = await db.execute(
             select(PasswordResetOTP)
             .where(

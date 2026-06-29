@@ -3,6 +3,7 @@ from sqlalchemy import select, func, and_, or_
 from sqlalchemy.exc import IntegrityError
 from typing import Optional, List
 from datetime import datetime, timedelta
+from app.core.database import utc_now_naive
 import secrets
 import uuid
 
@@ -17,6 +18,7 @@ from app.modules.restaurant.model import (
     SubscriptionStatus,
     InvoiceStatus
 )
+from app.core.timezone import APP_TIMEZONE
 from app.modules.restaurant.schema import (
     RestaurantCreate,
     RestaurantUpdate,
@@ -69,7 +71,7 @@ class RestaurantService:
             gstin=restaurant_data.gstin,
             fssai_license=restaurant_data.fssai_license,
             pan_number=restaurant_data.pan_number,
-            timezone=restaurant_data.timezone,
+            timezone=APP_TIMEZONE,
             currency=restaurant_data.currency,
             language=restaurant_data.language,
             enable_gst=restaurant_data.enable_gst,
@@ -77,7 +79,7 @@ class RestaurantService:
             sgst_rate=restaurant_data.sgst_rate,
             igst_rate=restaurant_data.igst_rate,
             service_charge_percentage=restaurant_data.service_charge_percentage,
-            trial_ends_at=datetime.utcnow() + timedelta(days=14)
+            trial_ends_at=utc_now_naive() + timedelta(days=14)
         )
         
         db.add(restaurant)
@@ -170,6 +172,7 @@ class RestaurantService:
             return None
         
         update_data = restaurant_data.model_dump(exclude_unset=True)
+        update_data["timezone"] = APP_TIMEZONE
         for field, value in update_data.items():
             setattr(restaurant, field, value)
         
@@ -189,7 +192,7 @@ class RestaurantService:
         if not restaurant:
             return False
         
-        restaurant.deleted_at = datetime.utcnow()
+        restaurant.deleted_at = utc_now_naive()
         restaurant.is_active = False
         
         await db.commit()
@@ -340,7 +343,7 @@ class SubscriptionService:
             raise ValueError(f"Plan {subscription_data.plan} not found")
         
         # Calculate period
-        now = datetime.utcnow()
+        now = utc_now_naive()
         trial_end = now + timedelta(days=plan.trial_days)
         
         subscription = Subscription(
@@ -426,8 +429,8 @@ class SubscriptionService:
         
         if immediate:
             subscription.status = SubscriptionStatus.CANCELLED
-            subscription.cancelled_at = datetime.utcnow()
-            subscription.ended_at = datetime.utcnow()
+            subscription.cancelled_at = utc_now_naive()
+            subscription.ended_at = utc_now_naive()
         else:
             subscription.cancel_at_period_end = True
         
@@ -465,7 +468,7 @@ class InvoiceService:
         """Create a new invoice"""
         # Generate invoice number
         count = await db.execute(select(func.count(Invoice.id)))
-        invoice_number = f"INV-{datetime.utcnow().strftime('%Y%m')}-{count.scalar() + 1:05d}"
+        invoice_number = f"INV-{utc_now_naive().strftime('%Y%m')}-{count.scalar() + 1:05d}"
         
         invoice = Invoice(
             id=str(uuid.uuid4()),
@@ -513,7 +516,7 @@ class InvoiceService:
             return None
         
         invoice.status = InvoiceStatus.PAID
-        invoice.paid_at = datetime.utcnow()
+        invoice.paid_at = utc_now_naive()
         invoice.payment_method = payment_method
         invoice.payment_gateway_charge_id = payment_gateway_charge_id
         
@@ -546,7 +549,7 @@ class RestaurantInvitationService:
             token=token,
             invited_by=invited_by_user_id,
             message=invitation_data.message,
-            expires_at=datetime.utcnow() + timedelta(days=7)
+            expires_at=utc_now_naive() + timedelta(days=7)
         )
         
         db.add(invitation)
@@ -581,14 +584,14 @@ class RestaurantInvitationService:
         if invitation.status != 'pending':
             return None
         
-        if invitation.expires_at < datetime.utcnow():
+        if invitation.expires_at < utc_now_naive():
             invitation.status = 'expired'
             await db.commit()
             return None
         
         # Update invitation
         invitation.status = 'accepted'
-        invitation.accepted_at = datetime.utcnow()
+        invitation.accepted_at = utc_now_naive()
         invitation.accepted_by = user_id
         
         # Create restaurant owner relationship

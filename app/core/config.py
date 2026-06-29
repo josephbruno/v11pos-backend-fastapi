@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     
     # App Configuration
     APP_ENV: Literal["development", "production"] = "development"
+    # Application timezone — all display/query boundaries use IST (storage remains UTC).
+    APP_TIMEZONE: str = "Asia/Kolkata"
     
     # Database Configuration
     DB_HOST: str
@@ -77,6 +79,9 @@ class Settings(BaseSettings):
     RAZORPAY_KEY_SECRET: str | None = None
     RAZORPAY_WEBHOOK_SECRET: str | None = None
 
+    # CORS — comma-separated origins for production (dev allows *)
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost:8080"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -98,6 +103,14 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         """Check if running in production mode"""
         return self.APP_ENV == "production"
+
+    @property
+    def cors_origins(self) -> list[str]:
+        """Origins allowed by CORS middleware."""
+        if self.is_development:
+            return ["*"]
+        origins = [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+        return origins
 
 
 # Global settings instance

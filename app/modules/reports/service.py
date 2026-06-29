@@ -19,6 +19,8 @@ from app.modules.reports.schema import (
 )
 from app.modules.order.model import Order, OrderItem
 from app.modules.product.model import Product, Category
+from app.core.database import utc_now
+from app.core.timezone import get_ist_now
 from app.core.response import success_response, error_response
 
 
@@ -56,7 +58,7 @@ class SalesReportService:
         report_data = await SalesReportService._calculate_sales_metrics(db, orders, from_date, to_date, restaurant_id)
         
         # Create report
-        report_number = f"SR-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{str(uuid.uuid4())[:8]}"
+        report_number = f"SR-{get_ist_now().strftime('%Y%m%d%H%M%S')}-{str(uuid.uuid4())[:8]}"
         
         report = SalesReport(
             id=str(uuid.uuid4()),
@@ -64,7 +66,7 @@ class SalesReportService:
             report_number=report_number,
             report_type=ReportType.DAILY_SALES,
             report_name=f"Daily Sales Report - {from_date.strftime('%Y-%m-%d')}",
-            report_date=datetime.utcnow(),
+            report_date=utc_now(),
             from_date=from_date,
             to_date=to_date,
             period_type="day",
@@ -110,7 +112,7 @@ class SalesReportService:
         report_data = await SalesReportService._calculate_sales_metrics(db, orders, from_date, to_date, restaurant_id)
         
         # Create report
-        report_number = f"SR-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{str(uuid.uuid4())[:8]}"
+        report_number = f"SR-{get_ist_now().strftime('%Y%m%d%H%M%S')}-{str(uuid.uuid4())[:8]}"
         
         report = SalesReport(
             id=str(uuid.uuid4()),
@@ -118,7 +120,7 @@ class SalesReportService:
             report_number=report_number,
             report_type=ReportType.MONTHLY_SALES,
             report_name=f"Monthly Sales Report - {from_date.strftime('%B %Y')}",
-            report_date=datetime.utcnow(),
+            report_date=utc_now(),
             from_date=from_date,
             to_date=to_date,
             period_type="month",
@@ -234,9 +236,27 @@ class SalesReportService:
             
             # Tax
             metrics["total_tax"] += order.tax_amount or 0
-            metrics["cgst_amount"] += getattr(order, "cgst_amount", 0) or 0
-            metrics["sgst_amount"] += getattr(order, "sgst_amount", 0) or 0
-            metrics["igst_amount"] += getattr(order, "igst_amount", 0) or 0
+            tax_details = getattr(order, "tax_details", None) or {}
+            if isinstance(tax_details, dict):
+                metrics["cgst_amount"] += int(
+                    tax_details.get("cgst_amount") or tax_details.get("cgst") or 0
+                )
+                metrics["sgst_amount"] += int(
+                    tax_details.get("sgst_amount") or tax_details.get("sgst") or 0
+                )
+                metrics["igst_amount"] += int(
+                    tax_details.get("igst_amount") or tax_details.get("igst") or 0
+                )
+                metrics["vat_amount"] += int(
+                    tax_details.get("vat_amount") or tax_details.get("vat") or 0
+                )
+                metrics["service_tax"] += int(
+                    tax_details.get("service_tax") or tax_details.get("service_tax_amount") or 0
+                )
+            else:
+                metrics["cgst_amount"] += getattr(order, "cgst_amount", 0) or 0
+                metrics["sgst_amount"] += getattr(order, "sgst_amount", 0) or 0
+                metrics["igst_amount"] += getattr(order, "igst_amount", 0) or 0
             
             # Discounts
             metrics["total_discount"] += order.discount_amount or 0
@@ -404,7 +424,7 @@ class SalesReportService:
         if not report:
             return False
         
-        report.deleted_at = datetime.utcnow()
+        report.deleted_at = utc_now()
         await db.commit()
         
         return True

@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.rate_limit import otp_rate_limiter, login_rate_limiter, rate_limit_dependency
 from app.core.response import error_response, success_response
 from app.modules.customer.service import CustomerService
 from app.modules.customer.schema import (
@@ -120,6 +121,7 @@ async def send_otp(
     payload: CustomerEmailOTPRequest,
     request: Request,
     db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit_dependency(otp_rate_limiter)),
 ):
     """
     Step 1 — Customer authentication: send a one-time code to the customer's email.
@@ -143,6 +145,7 @@ async def send_otp(
 async def verify_otp(
     payload: CustomerEmailOTPVerify,
     db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit_dependency(login_rate_limiter)),
 ):
     """
     Step 2 — Customer authentication: verify the OTP.
@@ -167,6 +170,7 @@ async def request_email_otp(
     payload: CustomerEmailOTPRequest,
     request: Request,
     db: AsyncSession = Depends(get_db),
+    _: None = Depends(rate_limit_dependency(otp_rate_limiter)),
 ):
     """Same as **POST /customer-auth/send-otp** (kept for backward compatibility)."""
     try:

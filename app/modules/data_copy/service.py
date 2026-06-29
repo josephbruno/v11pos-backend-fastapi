@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import datetime
+from app.core.database import utc_now_naive
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Type
 
 from sqlalchemy import and_, func, select
@@ -41,7 +42,7 @@ class DataCopyService:
 
     @staticmethod
     async def generate_copy_number() -> str:
-        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        timestamp = utc_now_naive().strftime("%Y%m%d%H%M%S")
         random_suffix = str(uuid.uuid4())[:8].upper()
         return f"CPY-{timestamp}-{random_suffix}"
 
@@ -81,7 +82,7 @@ class DataCopyService:
             operation.copy_metadata = {
                 **(operation.copy_metadata or {}),
                 "celery_task_id": task.id,
-                "queued_at": datetime.utcnow().isoformat(),
+                "queued_at": utc_now_naive().isoformat(),
             }
             operations.append(operation)
 
@@ -122,8 +123,8 @@ class DataCopyService:
                 "include_inactive": options.include_inactive,
                 "include_unavailable": options.include_unavailable,
             },
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=utc_now_naive(),
+            updated_at=utc_now_naive(),
         )
         db.add(operation)
         await db.flush()
@@ -141,7 +142,7 @@ class DataCopyService:
 
         try:
             operation.status = CopyStatus.PROCESSING.value
-            operation.processing_started_at = datetime.utcnow()
+            operation.processing_started_at = utc_now_naive()
             operation.error_message = None
             operation.error_details = None
             await db.commit()
@@ -167,7 +168,7 @@ class DataCopyService:
                 status = CopyStatus.PARTIAL.value if operation.items_copied else CopyStatus.FAILED.value
 
             operation.status = status
-            operation.processing_completed_at = datetime.utcnow()
+            operation.processing_completed_at = utc_now_naive()
             operation.processing_time = int(
                 (operation.processing_completed_at - operation.processing_started_at).total_seconds()
             )
@@ -179,20 +180,20 @@ class DataCopyService:
                 "modifiers": operation.modifiers_copied,
                 "combos": operation.combos_copied,
             }
-            operation.updated_at = datetime.utcnow()
+            operation.updated_at = utc_now_naive()
             await db.commit()
             return operation.status
         except Exception as exc:
             logger.exception("Data copy failed for %s", copy_id)
             operation.status = CopyStatus.FAILED.value
-            operation.processing_completed_at = datetime.utcnow()
+            operation.processing_completed_at = utc_now_naive()
             if operation.processing_started_at:
                 operation.processing_time = int(
                     (operation.processing_completed_at - operation.processing_started_at).total_seconds()
                 )
             operation.error_message = str(exc)
             operation.error_details = {"error_type": type(exc).__name__}
-            operation.updated_at = datetime.utcnow()
+            operation.updated_at = utc_now_naive()
             await db.commit()
             raise
 
@@ -358,8 +359,8 @@ class DataCopyService:
                 "id": str(uuid.uuid4()),
                 "restaurant_id": operation.destination_restaurant_id,
                 "parent_id": category_mapping.get(source.parent_id) if source.parent_id else None,
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
+                "created_at": utc_now_naive(),
+                "updated_at": utc_now_naive(),
                 "deleted_at": None,
             }
             data = DataCopyService.clone_column_data(source, Category, overrides)
@@ -414,8 +415,8 @@ class DataCopyService:
                 "restaurant_id": operation.destination_restaurant_id,
                 "category_id": new_category_id,
                 "sku": None,
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
+                "created_at": utc_now_naive(),
+                "updated_at": utc_now_naive(),
                 "published_at": None,
                 "deleted_at": None,
             }
@@ -466,8 +467,8 @@ class DataCopyService:
                 {
                     "id": str(uuid.uuid4()),
                     "restaurant_id": operation.destination_restaurant_id,
-                    "created_at": datetime.utcnow(),
-                    "updated_at": datetime.utcnow(),
+                    "created_at": utc_now_naive(),
+                    "updated_at": utc_now_naive(),
                 },
             )
             if options.copy_images:
@@ -489,8 +490,8 @@ class DataCopyService:
                         "restaurant_id": operation.destination_restaurant_id,
                         "modifier_id": destination.id,
                         "price": source_option.price if options.copy_prices else 0,
-                        "created_at": datetime.utcnow(),
-                        "updated_at": datetime.utcnow(),
+                        "created_at": utc_now_naive(),
+                        "updated_at": utc_now_naive(),
                     },
                 )
                 destination_option = ModifierOption(**option_data)
@@ -532,7 +533,7 @@ class DataCopyService:
                     restaurant_id=operation.destination_restaurant_id,
                     product_id=product_id,
                     modifier_id=modifier_id,
-                    created_at=datetime.utcnow(),
+                    created_at=utc_now_naive(),
                 )
             )
         await db.flush()
@@ -570,8 +571,8 @@ class DataCopyService:
                     "restaurant_id": operation.destination_restaurant_id,
                     "category_id": category_id,
                     "price": source.price if options.copy_prices else 0,
-                    "created_at": datetime.utcnow(),
-                    "updated_at": datetime.utcnow(),
+                    "created_at": utc_now_naive(),
+                    "updated_at": utc_now_naive(),
                 },
             )
             if options.copy_images:
@@ -596,7 +597,7 @@ class DataCopyService:
                         "restaurant_id": operation.destination_restaurant_id,
                         "combo_id": destination.id,
                         "product_id": product_id,
-                        "created_at": datetime.utcnow(),
+                        "created_at": utc_now_naive(),
                     },
                 )
                 db.add(ComboItem(**item_data))
@@ -696,7 +697,7 @@ class DataCopyService:
             existing_entity_id=existing_entity_id,
             error_message=error_message,
             error_type=error_type,
-            processed_at=datetime.utcnow(),
+            processed_at=utc_now_naive(),
         )
         db.add(copy_log)
         return copy_log

@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Optional
 import uuid
 import enum
-from app.core.database import Base
+from app.core.database import Base, utc_now_naive
 
 
 class TableStatus(str, enum.Enum):
@@ -68,11 +68,11 @@ class Table(Base):
     notes: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
     
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now_naive, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now_naive,
+        onupdate=utc_now_naive,
         nullable=False
     )
     

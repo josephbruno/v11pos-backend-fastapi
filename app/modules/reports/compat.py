@@ -7,6 +7,7 @@ from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from app.core.query_datetime import ist_day_end_utc, ist_day_start_utc, ist_today
+from app.core.timezone import ist_now_iso
 
 from pydantic import BaseModel, Field
 from sqlalchemy import select, and_
@@ -102,7 +103,7 @@ def serialize_sales_report_frontend(report: SalesReport | Dict[str, Any]) -> Dic
         "total_discount": data.get("total_discount", 0),
         "net_revenue": net_revenue,
         "avg_order_value": aov,
-        "created_at": data.get("created_at") or datetime.utcnow().isoformat(),
+        "created_at": data.get("created_at") or ist_now_iso(),
     }
 
 
@@ -135,11 +136,21 @@ def serialize_category_report_frontend(cat: Any) -> Dict[str, Any]:
     }
 
 
-def _month_bounds(year: int, month: int) -> tuple[datetime, datetime]:
+def _month_bounds_utc(year: int, month: int) -> tuple[datetime, datetime]:
+    """IST calendar month bounds stored as UTC-naive DB datetimes."""
     last_day = monthrange(year, month)[1]
-    start = datetime(year, month, 1)
-    end = datetime(year, month, last_day, 23, 59, 59)
+    start = ist_day_start_utc(date(year, month, 1))
+    end = ist_day_end_utc(date(year, month, last_day))
     return start, end
+
+
+def _shift_ist_months(months_back: int) -> tuple[int, int]:
+    today = ist_today()
+    anchor = date(today.year, today.month, 1)
+    month_index = anchor.year * 12 + (anchor.month - 1) - months_back
+    year = month_index // 12
+    month = month_index % 12 + 1
+    return year, month
 
 
 async def aggregate_live_monthly_sales(
@@ -147,14 +158,12 @@ async def aggregate_live_monthly_sales(
     restaurant_id: str,
     months: int = 12,
 ) -> List[Dict[str, Any]]:
-    """Build monthly sales rows from live orders (no DB snapshot required)."""
-    now = datetime.utcnow()
+    """Build monthly sales rows from live orders (IST calendar months)."""
     rows: List[Dict[str, Any]] = []
 
     for i in range(months - 1, -1, -1):
-        d = now - timedelta(days=30 * i)
-        year, month = d.year, d.month
-        from_date, to_date = _month_bounds(year, month)
+        year, month = _shift_ist_months(i)
+        from_date, to_date = _month_bounds_utc(year, month)
 
         query = select(Order).where(
             and_(
@@ -179,7 +188,7 @@ async def aggregate_live_monthly_sales(
                     "from_date": from_date.isoformat(),
                     "to_date": to_date.isoformat(),
                     "report_type": ReportType.MONTHLY_SALES.value,
-                    "created_at": datetime.utcnow().isoformat(),
+                    "created_at": ist_now_iso(),
                     **metrics,
                 }
             )
@@ -193,13 +202,13 @@ async def aggregate_live_daily_sales(
     restaurant_id: str,
     days: int = 30,
 ) -> List[Dict[str, Any]]:
-    now = datetime.utcnow()
+    today = ist_today()
     rows: List[Dict[str, Any]] = []
 
     for i in range(days - 1, -1, -1):
-        day = (now - timedelta(days=i)).date()
-        from_date = datetime.combine(day, datetime.min.time())
-        to_date = datetime.combine(day, datetime.max.time())
+        day = today - timedelta(days=i)
+        from_date = ist_day_start_utc(day)
+        to_date = ist_day_end_utc(day)
 
         query = select(Order).where(
             and_(
@@ -224,7 +233,7 @@ async def aggregate_live_daily_sales(
                     "from_date": from_date.isoformat(),
                     "to_date": to_date.isoformat(),
                     "report_type": ReportType.DAILY_SALES.value,
-                    "created_at": datetime.utcnow().isoformat(),
+                    "created_at": ist_now_iso(),
                     **metrics,
                 }
             )
@@ -241,9 +250,9 @@ async def compute_live_item_reports(
     limit: int = 50,
 ) -> List[Dict[str, Any]]:
     if not to_date:
-        to_date = datetime.utcnow()
+        to_date = ist_day_end_utc(ist_today())
     if not from_date:
-        from_date = to_date - timedelta(days=30)
+        from_date = ist_day_start_utc(ist_today() - timedelta(days=30))
 
     query = select(OrderItem).join(Order).where(
         and_(
@@ -284,7 +293,7 @@ async def compute_live_item_reports(
                 "total_cost": None,
                 "profit": None,
                 "report_date": from_date.isoformat(),
-                "created_at": datetime.utcnow().isoformat(),
+                "created_at": ist_now_iso(),
             }
         )
 
@@ -300,9 +309,9 @@ async def compute_live_category_reports(
     limit: int = 50,
 ) -> List[Dict[str, Any]]:
     if not to_date:
-        to_date = datetime.utcnow()
+        to_date = ist_day_end_utc(ist_today())
     if not from_date:
-        from_date = to_date - timedelta(days=30)
+        from_date = ist_day_start_utc(ist_today() - timedelta(days=30))
 
     query = (
         select(OrderItem, Product, Category)
@@ -345,7 +354,7 @@ async def compute_live_category_reports(
                 "total_revenue": total_revenue,
                 "quantity_sold": quantity_sold,
                 "report_date": from_date.isoformat(),
-                "created_at": datetime.utcnow().isoformat(),
+                "created_at": ist_now_iso(),
             }
         )
 
@@ -360,15 +369,16 @@ def parse_frontend_generate_dates(
         if req.report_date:
             day = datetime.fromisoformat(req.report_date.replace("Z", "")).date()
         else:
-            day = datetime.utcnow().date()
-        start = datetime.combine(day, datetime.min.time())
-        end = datetime.combine(day, datetime.max.time())
+            day = ist_today()
+        start = ist_day_start_utc(day)
+        end = ist_day_end_utc(day)
         report_type = ReportType.DAILY_SALES.value
         name = f"Daily Sales Report - {day.isoformat()}"
     else:
-        year = req.report_year or datetime.utcnow().year
-        month = req.report_month or datetime.utcnow().month
-        start, end = _month_bounds(year, month)
+        today = ist_today()
+        year = req.report_year or today.year
+        month = req.report_month or today.month
+        start, end = _month_bounds_utc(year, month)
         report_type = ReportType.MONTHLY_SALES.value
         name = f"Monthly Sales Report - {year}-{month:02d}"
     return start, end, report_type, name

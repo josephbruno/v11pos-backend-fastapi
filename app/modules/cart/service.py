@@ -115,10 +115,11 @@ class CartService:
                     Product.id == product_id,
                     Product.restaurant_id == restaurant_id,
                     Product.available == True,
+                    Product.is_published == True,
                 )
             )
             if not product:
-                raise CartValidationError("Product not found", field="product_id")
+                raise CartValidationError("Product is not available", field="product_id")
             unit_price = int(product.price or 0)
         elif item_type == CartItemType.COMBO_PRODUCT:
             combo = await db.scalar(
@@ -353,7 +354,7 @@ class CartService:
                 if not entry.item.product_id:
                     raise CartValidationError("Cart line missing product_id", field="product_id")
                 product = products_by_id.get(entry.item.product_id)
-                if not product or not product.available:
+                if not product or not product.available or not product.is_published:
                     raise CartValidationError("A cart product is no longer available", field="product_id")
                 order_items.append(
                     OrderItemCreate(

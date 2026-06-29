@@ -2,6 +2,7 @@
 Home banner service layer
 """
 from datetime import datetime
+from app.core.database import utc_now_naive
 from typing import List, Optional
 
 from sqlalchemy import func, select
@@ -105,6 +106,6 @@ class HomeBannerService:
         if not banner:
             return False
 
-        banner.deleted_at = datetime.utcnow()
+        banner.deleted_at = utc_now_naive()
         await db.commit()
         return True

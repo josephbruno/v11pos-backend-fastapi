@@ -7,7 +7,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.core.database import get_db, utc_now_naive
 from app.core.dependencies import CartAuthContext, get_cart_auth_context
 from app.core.response import error_response, success_response
 from app.modules.cart.schema import (
@@ -60,6 +60,7 @@ async def _build_cart_response(db: AsyncSession, cart) -> CartResponse:
                     category_id=p.category_id,
                     category_name=category_names.get(p.category_id),
                     available=bool(p.available),
+                    is_published=bool(p.is_published),
                 )
         elif item.combo_product_id:
             c = combos_by_id.get(item.combo_product_id)
@@ -151,7 +152,7 @@ async def checkout_cart(
                     "restaurant_id": str(order.restaurant_id),
                     "order_id": str(order.id),
                     "order": order_response.model_dump(mode="json"),
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": utc_now_naive().isoformat(),
                 },
             )
         except Exception:

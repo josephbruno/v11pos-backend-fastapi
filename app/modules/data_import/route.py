@@ -7,7 +7,7 @@ import os
 import shutil
 from pathlib import Path as FilePath
 
-from app.core.database import get_db
+from app.core.database import get_db, utc_now_naive
 from app.core.dependencies import get_current_user
 from app.core.response import success_response, error_response
 from app.modules.data_import.schema import (
@@ -69,7 +69,7 @@ async def upload_file_for_import(
         file_format = "excel"
     
     # Save file
-    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+    timestamp = utc_now_naive().strftime("%Y%m%d%H%M%S")
     safe_filename = f"{timestamp}_{file.filename}"
     file_path = UPLOAD_DIR / safe_filename
     
@@ -158,7 +158,7 @@ async def upload_file_for_import(
         
         # Proceed with import
         data_import.status = "processing"
-        data_import.processing_started_at = datetime.utcnow()
+        data_import.processing_started_at = utc_now_naive()
         await db.commit()
         
         # Import based on type
@@ -183,7 +183,7 @@ async def upload_file_for_import(
         
         # Update import with results
         data_import.status = "completed"
-        data_import.processing_completed_at = datetime.utcnow()
+        data_import.processing_completed_at = utc_now_naive()
         data_import.processing_time = result["processing_time"]
         data_import.rows_processed = result["stats"]["total_rows"]
         data_import.rows_imported = result["stats"]["imported"]
@@ -475,7 +475,7 @@ async def delete_import(
         if data_import.restaurant_id != user_restaurant_id:
             raise HTTPException(status_code=403, detail="Access denied")
     
-    data_import.deleted_at = datetime.utcnow()
+    data_import.deleted_at = utc_now_naive()
     await db.commit()
     
     return success_response(message="Import deleted successfully",

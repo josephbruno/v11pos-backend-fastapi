@@ -6,6 +6,7 @@ from sqlalchemy import select, and_, or_, func, text
 from sqlalchemy.orm import joinedload
 from typing import Optional, List, Tuple, Dict
 from datetime import datetime
+from app.core.database import utc_now_naive
 
 from app.modules.product.model import (
     Category, Product, Modifier, ModifierOption, ProductModifier,
@@ -181,7 +182,7 @@ class CategoryService:
         if not category:
             return False
         
-        category.deleted_at = datetime.utcnow()
+        category.deleted_at = utc_now_naive()
         await db.commit()
         return True
 

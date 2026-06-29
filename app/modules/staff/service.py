@@ -3,6 +3,7 @@ from sqlalchemy import select, and_, or_, func, extract
 from sqlalchemy.orm import selectinload
 from typing import Optional, List
 from datetime import datetime, date, timedelta
+from app.core.database import utc_now_naive
 import uuid
 
 from app.modules.staff.model import (
@@ -132,7 +133,7 @@ class StaffService:
             setattr(role, field, value)
 
         role.updated_by = user_id
-        role.updated_at = datetime.utcnow()
+        role.updated_at = utc_now_naive()
 
         # Update permissions if provided
         if role_data.permissions is not None:
@@ -246,7 +247,7 @@ class StaffService:
         db.add(staff)
 
         # Initialize leave balances for current year
-        current_year = datetime.utcnow().year
+        current_year = utc_now_naive().year
         leave_allocations = {
             LeaveType.SICK_LEAVE: 7,
             LeaveType.CASUAL_LEAVE: 7,
@@ -364,7 +365,7 @@ class StaffService:
             staff.total_salary = (staff.basic_salary or 0) + (staff.allowances or 0)
 
         staff.updated_by = user_id
-        staff.updated_at = datetime.utcnow()
+        staff.updated_at = utc_now_naive()
 
         await db.commit()
         await db.refresh(staff)
@@ -493,7 +494,7 @@ class StaffService:
                 detail="Already checked in today"
             )
 
-        check_in_time = datetime.utcnow()
+        check_in_time = utc_now_naive()
 
         # Check if late
         is_late = False
@@ -546,7 +547,7 @@ class StaffService:
                 detail="Already checked out"
             )
 
-        check_out_time = datetime.utcnow()
+        check_out_time = utc_now_naive()
         attendance.check_out_time = check_out_time
         attendance.check_out_location = check_out_data.check_out_location
         attendance.check_out_ip = ip_address
@@ -722,7 +723,7 @@ class StaffService:
 
         leave_app.status = approval_data.status
         leave_app.approved_by = user_id
-        leave_app.approved_at = datetime.utcnow()
+        leave_app.approved_at = utc_now_naive()
         leave_app.rejection_reason = approval_data.rejection_reason
 
         # Update leave balance if approved
@@ -758,7 +759,7 @@ class StaffService:
     ) -> List[LeaveBalance]:
         """Get leave balance for staff"""
         if year is None:
-            year = datetime.utcnow().year
+            year = utc_now_naive().year
 
         result = await db.execute(
             select(LeaveBalance).where(
