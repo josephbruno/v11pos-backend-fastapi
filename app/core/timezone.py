@@ -88,7 +88,7 @@ def convert_datetime_fields(
     Recursively convert datetime fields in data structure to target timezone
     
     Args:
-        data: Data to convert (dict, list, or single value)
+        data: Data to convert (dict, list, pydantic model, or single value)
         to_timezone: Target timezone
         datetime_fields: List of field names to convert (if None, converts all datetime objects)
         
@@ -97,6 +97,16 @@ def convert_datetime_fields(
     """
     if data is None:
         return None
+
+    # Pydantic v2 models — dump first so nested datetimes are converted.
+    # Passing BaseModel through success_response previously skipped IST conversion.
+    try:
+        from pydantic import BaseModel as _PydanticBaseModel
+    except ImportError:  # pragma: no cover
+        _PydanticBaseModel = ()  # type: ignore[assignment,misc]
+
+    if _PydanticBaseModel and isinstance(data, _PydanticBaseModel):
+        return convert_datetime_fields(data.model_dump(), to_timezone, datetime_fields)
     
     # Handle dictionary
     if isinstance(data, dict):
@@ -108,7 +118,9 @@ def convert_datetime_fields(
                     result[key] = convert_from_utc(value, to_timezone)
                 else:
                     result[key] = value
-            # Recursively handle nested structures
+            # Recursively handle nested structures (including nested pydantic models)
+            elif _PydanticBaseModel and isinstance(value, _PydanticBaseModel):
+                result[key] = convert_datetime_fields(value, to_timezone, datetime_fields)
             elif isinstance(value, (dict, list)):
                 result[key] = convert_datetime_fields(value, to_timezone, datetime_fields)
             else:

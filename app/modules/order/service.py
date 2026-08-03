@@ -4,6 +4,7 @@ from sqlalchemy.orm import selectinload
 from typing import Optional, List
 from datetime import datetime, timedelta
 from app.core.database import utc_now_naive
+from app.core.timezone import get_ist_now
 from app.modules.order.model import Order, OrderItem, OrderType, OrderStatus, PaymentStatus
 from app.modules.order.schema import OrderCreate, OrderUpdate, OrderItemCreate, OrderItemUpdate
 import random
@@ -15,8 +16,8 @@ class OrderService:
     
     @staticmethod
     def generate_order_number() -> str:
-        """Generate unique order number"""
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        """Generate unique order number using IST wall clock."""
+        timestamp = get_ist_now().strftime("%Y%m%d%H%M%S")
         random_suffix = ''.join(random.choices(string.digits, k=4))
         return f"ORD-{timestamp}-{random_suffix}"
     

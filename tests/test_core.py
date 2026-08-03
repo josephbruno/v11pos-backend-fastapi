@@ -1,7 +1,9 @@
-from datetime import date
+from datetime import date, datetime, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi import HTTPException
+from pydantic import BaseModel
 
 from app.core.query_datetime import (
     ist_day_end_utc,
@@ -10,6 +12,7 @@ from app.core.query_datetime import (
     to_query_start_datetime,
 )
 from app.core.rate_limit import RateLimiter
+from app.core.timezone import APP_TIMEZONE, convert_datetime_fields
 
 
 def test_ist_day_bounds_convert_to_utc_naive():
@@ -36,3 +39,30 @@ def test_rate_limiter_blocks_after_max():
     with pytest.raises(HTTPException) as exc:
         limiter.check("127.0.0.1")
     assert exc.value.status_code == 429
+
+
+def test_convert_datetime_fields_handles_pydantic_models():
+    class OrderStub(BaseModel):
+        created_at: datetime
+        name: str
+
+    # 05:02 UTC → 10:32 IST
+    utc_naive = datetime(2026, 8, 3, 5, 2, 57)
+    converted = convert_datetime_fields(OrderStub(created_at=utc_naive, name="x"))
+    assert isinstance(converted, dict)
+    assert converted["name"] == "x"
+    local = converted["created_at"]
+    assert local.tzinfo is not None
+    ist = local.astimezone(ZoneInfo(APP_TIMEZONE))
+    assert ist.hour == 10 and ist.minute == 32
+
+
+def test_convert_datetime_fields_handles_nested_pydantic_list():
+    class ItemStub(BaseModel):
+        created_at: datetime
+
+    utc_naive = datetime(2026, 8, 3, 5, 2, 57, tzinfo=timezone.utc).replace(tzinfo=None)
+    converted = convert_datetime_fields({"orders": [ItemStub(created_at=utc_naive)]})
+    local = converted["orders"][0]["created_at"]
+    ist = local.astimezone(ZoneInfo(APP_TIMEZONE))
+    assert ist.hour == 10 and ist.minute == 32
