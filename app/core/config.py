@@ -80,7 +80,11 @@ class Settings(BaseSettings):
     RAZORPAY_WEBHOOK_SECRET: str | None = None
 
     # CORS — comma-separated origins for production (dev allows *)
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,http://localhost:8080"
+    CORS_ORIGINS: str = (
+        "http://localhost:5173,http://localhost:3000,http://localhost:8080,"
+        "https://pos.v11tech.com,https://apipos.v11tech.com,"
+        "https://posv11tech.web.app,https://posv11tech.firebaseapp.com"
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -111,6 +115,13 @@ class Settings(BaseSettings):
             return ["*"]
         origins = [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
         return origins
+
+    @property
+    def cors_origin_regex(self) -> str | None:
+        """Allow any https://*.v11tech.com admin host in production."""
+        if self.is_development:
+            return None
+        return r"https://([a-zA-Z0-9-]+\.)*v11tech\.com"
 
 
 # Global settings instance

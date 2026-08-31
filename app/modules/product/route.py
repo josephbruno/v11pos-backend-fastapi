@@ -1,7 +1,8 @@
 """
 Product catalog and inventory API routes
 """
-from fastapi import APIRouter, Depends, status, Request, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, status, Request, UploadFile
+from pydantic import ValidationError
 from starlette.datastructures import UploadFile as StarletteUploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional, Tuple, Any
@@ -164,7 +165,8 @@ async def _parse_payload(
         if isinstance(value, (UploadFile, StarletteUploadFile)) or (
             hasattr(value, "filename") and hasattr(value, "file")
         ):
-            if file_field and key == file_field:
+            filename = getattr(value, "filename", None)
+            if file_field and key == file_field and filename:
                 upload = value
             continue
         if key in data:
@@ -414,6 +416,7 @@ async def delete_category(
 # Product Endpoints
 
 @router.post("", status_code=status.HTTP_201_CREATED, openapi_extra=PRODUCT_CREATE_DOC)
+@router.post("/", status_code=status.HTTP_201_CREATED, include_in_schema=False)
 async def create_product(
     request: Request,
     current_user: User = Depends(get_current_active_user),
@@ -429,7 +432,6 @@ async def create_product(
         product_data = ProductCreate(**data)
         if product_data.restaurant_id:
             from app.modules.restaurant.enforcement import SubscriptionEnforcementService
-            from app.modules.restaurant.service import RestaurantService
 
             await SubscriptionEnforcementService.assert_within_limit(
                 db, product_data.restaurant_id, "products"
@@ -440,7 +442,8 @@ async def create_product(
             await RestaurantService.increment_usage(db, product_data.restaurant_id, "products")
         return success_response(
             message="Product created successfully",
-            data=ProductResponse.model_validate(product).model_dump()
+            data=ProductResponse.model_validate(product).model_dump(),
+            status_code=status.HTTP_201_CREATED,
         )
     except DuplicateError as e:
         return error_response(
@@ -449,6 +452,13 @@ async def create_product(
             error_details=str(e),
             field=e.field,
             status_code=status.HTTP_409_CONFLICT
+        )
+    except ValidationError as e:
+        return error_response(
+            message="Failed to create product",
+            error_code="VALIDATION_ERROR",
+            error_details=str(e),
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         )
     except ValueError as e:
         return error_response(

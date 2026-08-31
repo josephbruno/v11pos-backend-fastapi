@@ -88,13 +88,15 @@ app = FastAPI(
     ]
 )
 
-# CORS middleware
+# CORS middleware — regex covers https://pos.v11tech.com and other v11tech hosts
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
+    allow_origin_regex=settings.cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Request-ID"],
 )
 
 
@@ -107,6 +109,28 @@ async def request_id_middleware(request: Request, call_next):
     return response
 
 app.add_exception_handler(RequestValidationError, request_validation_exception_handler)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """
+    Return a JSON 500 from ExceptionMiddleware (inside CORS) so browsers
+    never see a raw ServerErrorMiddleware response without Allow-Origin.
+    """
+    return JSONResponse(
+        status_code=500,
+        content={
+            "success": False,
+            "status_code": 500,
+            "message": "Internal server error",
+            "data": None,
+            "error": {
+                "code": "INTERNAL_ERROR",
+                "message": "Internal server error",
+                "details": str(exc) if settings.is_development else None,
+            },
+        },
+    )
 
 
 # Health check endpoint
