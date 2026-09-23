@@ -183,6 +183,12 @@ class ReceiptPrinter:
         BOLD_ON = ESC + b"E" + b"\x01"
         BOLD_OFF = ESC + b"E" + b"\x00"
         CUT = GS + b"V" + b"\x42" + b"\x00"
+        # Item list is indented off the paper edge; everything else keeps margin 0.
+        ITEM_LIST_LEFT_MARGIN = 50  # dots (horizontal motion units)
+
+        def left_margin(dots: int) -> bytes:
+            """GS L nL nH - set left margin, must be sent at the start of a line"""
+            return GS + b"L" + bytes([dots & 0xFF, (dots >> 8) & 0xFF])
 
         def line(text: str = "") -> bytes:
             return text.encode("ascii", errors="replace") + b"\n"
@@ -206,9 +212,11 @@ class ReceiptPrinter:
         buf += line(f"Date: {utc_now_naive().strftime('%Y-%m-%d %I:%M %p')}")
         buf += line("-" * 32)
 
+        buf += left_margin(ITEM_LIST_LEFT_MARGIN)
         for item in items:
             buf += line(f"{item.quantity}x {item.product_name[:24]}")
             buf += line(f"{'':<24}{_money(item.line_total):>8}")
+        buf += left_margin(0)
 
         buf += line("-" * 32)
         buf += line(f"{'Subtotal':<24}{_money(order.subtotal):>8}")
