@@ -9,9 +9,9 @@ from app.modules.order.model import Order, OrderItem
 from app.modules.restaurant.model import Restaurant
 
 
-def _money(amount_paise: int) -> str:
-    """Format an integer paise/cents amount as a 2-decimal string"""
-    return f"{(amount_paise or 0) / 100:.2f}"
+def _inr(amount_paise: int) -> str:
+    """Format an integer paise amount as an INR string, e.g. 'Rs. 400.00'"""
+    return f"Rs. {(amount_paise or 0) / 100:.2f}"
 
 
 class ReceiptPrinter:
@@ -46,44 +46,44 @@ class ReceiptPrinter:
         lines.append(f"Date: {utc_now_naive().strftime('%Y-%m-%d %I:%M %p')}")
         lines.append("-" * width)
 
-        lines.append(f"{'Item':<22}{'Qty':>4}{'Amount':>16}")
+        lines.append(f"{'Item':<20}{'Qty':>4}{'Amount':>18}")
         lines.append("-" * width)
         for item in items:
-            name = item.product_name[:22]
-            lines.append(f"{name:<22}{item.quantity:>4}{_money(item.line_total):>16}")
+            name = item.product_name[:20]
+            lines.append(f"{name:<20}{item.quantity:>4}{_inr(item.total_price):>18}")
             if item.customization:
                 lines.append(f"  NOTE: {item.customization}")
         lines.append("-" * width)
 
-        lines.append(f"{'Subtotal':<26}{_money(order.subtotal):>16}")
+        lines.append(f"{'Subtotal':<24}{_inr(order.subtotal):>18}")
         if order.discount_amount:
-            lines.append(f"{'Discount':<26}{'-' + _money(order.discount_amount):>16}")
+            lines.append(f"{'Discount':<24}{'-' + _inr(order.discount_amount):>18}")
         if order.service_charge:
-            lines.append(f"{'Service Charge':<26}{_money(order.service_charge):>16}")
+            lines.append(f"{'Service Charge':<24}{_inr(order.service_charge):>18}")
 
         tax_details = order.tax_details or {}
         if tax_details.get("cgst_amount"):
-            lines.append(f"{'CGST':<26}{_money(tax_details['cgst_amount']):>16}")
+            lines.append(f"{'CGST':<24}{_inr(tax_details['cgst_amount']):>18}")
         if tax_details.get("sgst_amount"):
-            lines.append(f"{'SGST':<26}{_money(tax_details['sgst_amount']):>16}")
+            lines.append(f"{'SGST':<24}{_inr(tax_details['sgst_amount']):>18}")
         if tax_details.get("igst_amount"):
-            lines.append(f"{'IGST':<26}{_money(tax_details['igst_amount']):>16}")
+            lines.append(f"{'IGST':<24}{_inr(tax_details['igst_amount']):>18}")
         if not tax_details and order.tax_amount:
-            lines.append(f"{'Tax':<26}{_money(order.tax_amount):>16}")
+            lines.append(f"{'Tax':<24}{_inr(order.tax_amount):>18}")
 
         if order.rounding_amount:
-            lines.append(f"{'Rounding':<26}{_money(order.rounding_amount):>16}")
+            lines.append(f"{'Rounding':<24}{_inr(order.rounding_amount):>18}")
 
         lines.append("=" * width)
-        lines.append(f"{'TOTAL':<26}{_money(order.total_amount):>16}")
+        lines.append(f"{'TOTAL':<24}{_inr(order.total_amount):>18}")
         lines.append("=" * width)
         lines.append("")
 
         if order.payment_method:
             lines.append(f"Payment: {order.payment_method.upper()}")
-        lines.append(f"Paid: {_money(order.paid_amount)}")
+        lines.append(f"Paid: {_inr(order.paid_amount)}")
         if order.due_amount:
-            lines.append(f"Due: {_money(order.due_amount)}")
+            lines.append(f"Due: {_inr(order.due_amount)}")
 
         lines.append("")
         lines.append("Thank you for visiting!".center(width))
@@ -105,19 +105,19 @@ class ReceiptPrinter:
             item_rows += f"""
         <div class="item-row">
             <div class="item-name">{item.quantity}x {item.product_name}</div>
-            <div class="item-amount">{_money(item.line_total)}</div>
+            <div class="item-amount">{_inr(item.total_price)}</div>
         </div>
         {note_html}"""
 
         tax_rows = ""
         if tax_details.get("cgst_amount"):
-            tax_rows += f'<div class="row"><span>CGST</span><span>{_money(tax_details["cgst_amount"])}</span></div>'
+            tax_rows += f'<div class="row"><span>CGST</span><span>{_inr(tax_details["cgst_amount"])}</span></div>'
         if tax_details.get("sgst_amount"):
-            tax_rows += f'<div class="row"><span>SGST</span><span>{_money(tax_details["sgst_amount"])}</span></div>'
+            tax_rows += f'<div class="row"><span>SGST</span><span>{_inr(tax_details["sgst_amount"])}</span></div>'
         if tax_details.get("igst_amount"):
-            tax_rows += f'<div class="row"><span>IGST</span><span>{_money(tax_details["igst_amount"])}</span></div>'
+            tax_rows += f'<div class="row"><span>IGST</span><span>{_inr(tax_details["igst_amount"])}</span></div>'
         if not tax_details and order.tax_amount:
-            tax_rows += f'<div class="row"><span>Tax</span><span>{_money(order.tax_amount)}</span></div>'
+            tax_rows += f'<div class="row"><span>Tax</span><span>{_inr(order.tax_amount)}</span></div>'
 
         return f"""
 <!DOCTYPE html>
@@ -153,15 +153,15 @@ class ReceiptPrinter:
         {item_rows}
     </div>
     <div class="section">
-        <div class="row"><span>Subtotal</span><span>{_money(order.subtotal)}</span></div>
-        {f'<div class="row"><span>Discount</span><span>-{_money(order.discount_amount)}</span></div>' if order.discount_amount else ''}
-        {f'<div class="row"><span>Service Charge</span><span>{_money(order.service_charge)}</span></div>' if order.service_charge else ''}
+        <div class="row"><span>Subtotal</span><span>{_inr(order.subtotal)}</span></div>
+        {f'<div class="row"><span>Discount</span><span>-{_inr(order.discount_amount)}</span></div>' if order.discount_amount else ''}
+        {f'<div class="row"><span>Service Charge</span><span>{_inr(order.service_charge)}</span></div>' if order.service_charge else ''}
         {tax_rows}
     </div>
-    <div class="total-row"><span>TOTAL</span><span>{_money(order.total_amount)}</span></div>
+    <div class="total-row"><span>TOTAL</span><span>{_inr(order.total_amount)}</span></div>
     <div class="section">
         {f'<div class="row"><span>Payment</span><span>{order.payment_method.upper()}</span></div>' if order.payment_method else ''}
-        <div class="row"><span>Paid</span><span>{_money(order.paid_amount)}</span></div>
+        <div class="row"><span>Paid</span><span>{_inr(order.paid_amount)}</span></div>
     </div>
     <div class="footer">Thank you for visiting!</div>
 </body>
@@ -183,15 +183,18 @@ class ReceiptPrinter:
         BOLD_ON = ESC + b"E" + b"\x01"
         BOLD_OFF = ESC + b"E" + b"\x00"
         CUT = GS + b"V" + b"\x42" + b"\x00"
-        # Item list is indented off the paper edge; everything else keeps margin 0.
-        ITEM_LIST_LEFT_MARGIN = 50  # dots (horizontal motion units)
 
-        def left_margin(dots: int) -> bytes:
-            """GS L nL nH - set left margin, must be sent at the start of a line"""
-            return GS + b"L" + bytes([dots & 0xFF, (dots >> 8) & 0xFF])
+        LINE_WIDTH = 32   # characters across the printable area
+        AMOUNT_WIDTH = 12  # fits "Rs. 99999.99"
+        LABEL_WIDTH = LINE_WIDTH - AMOUNT_WIDTH  # 20
+        ITEM_INDENT = "  "  # small text indent, not a hardware margin
 
         def line(text: str = "") -> bytes:
             return text.encode("ascii", errors="replace") + b"\n"
+
+        def kv(label: str, amount_paise: int, negative: bool = False) -> bytes:
+            amount = ("-" if negative else "") + _inr(amount_paise)
+            return line(f"{label:<{LABEL_WIDTH}}{amount:>{AMOUNT_WIDTH}}")
 
         buf = bytearray()
         buf += INIT
@@ -205,30 +208,30 @@ class ReceiptPrinter:
             buf += line(f"Ph: {restaurant.phone}")
         if restaurant.gstin:
             buf += line(f"GSTIN: {restaurant.gstin}")
-        buf += line("=" * 32)
+        buf += line("=" * LINE_WIDTH)
 
         buf += ALIGN_LEFT
         buf += line(f"Order #: {order.order_number}")
         buf += line(f"Date: {utc_now_naive().strftime('%Y-%m-%d %I:%M %p')}")
-        buf += line("-" * 32)
+        buf += line("-" * LINE_WIDTH)
 
-        buf += left_margin(ITEM_LIST_LEFT_MARGIN)
+        name_width = LABEL_WIDTH - len(ITEM_INDENT)
         for item in items:
-            buf += line(f"{item.quantity}x {item.product_name[:24]}")
-            buf += line(f"{'':<24}{_money(item.line_total):>8}")
-        buf += left_margin(0)
+            name = f"{item.quantity}x {item.product_name}"[:name_width]
+            amount = _inr(item.total_price)
+            buf += line(f"{ITEM_INDENT}{name:<{name_width}}{amount:>{AMOUNT_WIDTH}}")
 
-        buf += line("-" * 32)
-        buf += line(f"{'Subtotal':<24}{_money(order.subtotal):>8}")
+        buf += line("-" * LINE_WIDTH)
+        buf += kv("Subtotal", order.subtotal)
         if order.discount_amount:
-            buf += line(f"{'Discount':<24}{'-' + _money(order.discount_amount):>8}")
+            buf += kv("Discount", order.discount_amount, negative=True)
         if order.service_charge:
-            buf += line(f"{'Service Charge':<24}{_money(order.service_charge):>8}")
+            buf += kv("Service Charge", order.service_charge)
         if order.tax_amount:
-            buf += line(f"{'Tax':<24}{_money(order.tax_amount):>8}")
+            buf += kv("Tax", order.tax_amount)
 
         buf += BOLD_ON
-        buf += line(f"{'TOTAL':<24}{_money(order.total_amount):>8}")
+        buf += kv("TOTAL", order.total_amount)
         buf += BOLD_OFF
 
         buf += ALIGN_CENTER
