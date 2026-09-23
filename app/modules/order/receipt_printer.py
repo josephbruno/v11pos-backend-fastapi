@@ -23,6 +23,22 @@ def _inr(amount: float) -> str:
     return f"Rs. {(amount or 0):.2f}"
 
 
+def _pretax(total: float, tax: float) -> float:
+    """
+    Strip the tax portion baked into a total/subtotal, for display.
+
+    OrderService.calculate_item_total() folds each item's tax_amount into
+    its own total_price, and order.subtotal is the sum of those totals -
+    so both already include tax. Printing that as "Subtotal" then "Tax"
+    then "TOTAL" (same as Subtotal) makes it look like tax was shown but
+    never actually added. Subtracting the tax back out here, for display
+    only, restores the expected Subtotal -> + Tax -> = Total reading
+    without touching the underlying order-calculation logic used
+    elsewhere in the app.
+    """
+    return max(0.0, (total or 0) - (tax or 0))
+
+
 class ReceiptPrinter:
     """Service for generating the customer billing receipt"""
 
@@ -59,12 +75,13 @@ class ReceiptPrinter:
         lines.append("-" * width)
         for item in items:
             name = item.product_name[:20]
-            lines.append(f"{name:<20}{item.quantity:>4}{_inr(item.total_price):>18}")
+            amount = _pretax(item.total_price, item.tax_amount)
+            lines.append(f"{name:<20}{item.quantity:>4}{_inr(amount):>18}")
             if item.customization:
                 lines.append(f"  NOTE: {item.customization}")
         lines.append("-" * width)
 
-        lines.append(f"{'Subtotal':<24}{_inr(order.subtotal):>18}")
+        lines.append(f"{'Subtotal':<24}{_inr(_pretax(order.subtotal, order.tax_amount)):>18}")
         if order.discount_amount:
             lines.append(f"{'Discount':<24}{'-' + _inr(order.discount_amount):>18}")
         if order.service_charge:
@@ -111,10 +128,11 @@ class ReceiptPrinter:
         item_rows = ""
         for item in items:
             note_html = f'<div class="note">{item.customization}</div>' if item.customization else ""
+            amount = _pretax(item.total_price, item.tax_amount)
             item_rows += f"""
         <div class="item-row">
             <div class="item-name">{item.quantity}x {item.product_name}</div>
-            <div class="item-amount">{_inr(item.total_price)}</div>
+            <div class="item-amount">{_inr(amount)}</div>
         </div>
         {note_html}"""
 
@@ -162,7 +180,7 @@ class ReceiptPrinter:
         {item_rows}
     </div>
     <div class="section">
-        <div class="row"><span>Subtotal</span><span>{_inr(order.subtotal)}</span></div>
+        <div class="row"><span>Subtotal</span><span>{_inr(_pretax(order.subtotal, order.tax_amount))}</span></div>
         {f'<div class="row"><span>Discount</span><span>-{_inr(order.discount_amount)}</span></div>' if order.discount_amount else ''}
         {f'<div class="row"><span>Service Charge</span><span>{_inr(order.service_charge)}</span></div>' if order.service_charge else ''}
         {tax_rows}
@@ -193,9 +211,12 @@ class ReceiptPrinter:
         BOLD_OFF = ESC + b"E" + b"\x00"
         CUT = GS + b"V" + b"\x42" + b"\x00"
 
-        LINE_WIDTH = 32   # characters across the printable area
-        AMOUNT_WIDTH = 12  # fits "Rs. 99999.99"
-        LABEL_WIDTH = LINE_WIDTH - AMOUNT_WIDTH  # 20
+        # 42 characters is the standard column count for 78-80mm thermal
+        # paper at default Font A (matches generate_receipt_text's width) -
+        # keep this in sync with the sample preview in Settings.tsx.
+        LINE_WIDTH = 42
+        AMOUNT_WIDTH = 14  # fits "Rs. 999999.99"
+        LABEL_WIDTH = LINE_WIDTH - AMOUNT_WIDTH  # 28
         ITEM_INDENT = "  "  # small text indent, not a hardware margin
 
         def line(text: str = "") -> bytes:
@@ -227,12 +248,13 @@ class ReceiptPrinter:
         name_width = LABEL_WIDTH - len(ITEM_INDENT)
         for item in items:
             name = f"{item.quantity}x {item.product_name}"[:name_width]
+            amount = _pretax(item.total_price, item.tax_amount)
             # Routed through kv() - same label/amount column math as the
             # totals below it, so the two sections can never drift apart.
-            buf += kv(f"{ITEM_INDENT}{name}", item.total_price)
+            buf += kv(f"{ITEM_INDENT}{name}", amount)
 
         buf += line("-" * LINE_WIDTH)
-        buf += kv("Subtotal", order.subtotal)
+        buf += kv("Subtotal", _pretax(order.subtotal, order.tax_amount))
         if order.discount_amount:
             buf += kv("Discount", order.discount_amount, negative=True)
         if order.service_charge:
@@ -240,9 +262,11 @@ class ReceiptPrinter:
         if order.tax_amount:
             buf += kv("Tax", order.tax_amount)
 
-        buf += BOLD_ON
+        # Not bold: on some thermal printers, emphasized/bold mode renders at
+        # a different per-character pixel width than normal text, which
+        # would silently break this row's column alignment against the
+        # normal-weight rows above it even though the character math matches.
         buf += kv("TOTAL", order.total_amount)
-        buf += BOLD_OFF
 
         buf += ALIGN_CENTER
         buf += line("")
