@@ -9,9 +9,18 @@ from app.modules.order.model import Order, OrderItem
 from app.modules.restaurant.model import Restaurant
 
 
-def _inr(amount_paise: int) -> str:
-    """Format an integer paise amount as an INR string, e.g. 'Rs. 400.00'"""
-    return f"Rs. {(amount_paise or 0) / 100:.2f}"
+def _inr(amount: float) -> str:
+    """
+    Format an order/item amount as an INR string, e.g. 'Rs. 108.00'.
+
+    Order/OrderItem money columns are documented as paise, but the POS
+    terminal actually writes rupee values straight through - see
+    OrderPanel.tsx's buildOrderItems() (unit_price: item.priceRs, no *100)
+    and every formatInr() in the frontend, none of which divide by 100
+    either. Match that existing convention here instead of the docstring:
+    treat these columns as rupees, not paise.
+    """
+    return f"Rs. {(amount or 0):.2f}"
 
 
 class ReceiptPrinter:
@@ -192,8 +201,8 @@ class ReceiptPrinter:
         def line(text: str = "") -> bytes:
             return text.encode("ascii", errors="replace") + b"\n"
 
-        def kv(label: str, amount_paise: int, negative: bool = False) -> bytes:
-            amount = ("-" if negative else "") + _inr(amount_paise)
+        def kv(label: str, value: float, negative: bool = False) -> bytes:
+            amount = ("-" if negative else "") + _inr(value)
             return line(f"{label:<{LABEL_WIDTH}}{amount:>{AMOUNT_WIDTH}}")
 
         buf = bytearray()
@@ -218,8 +227,9 @@ class ReceiptPrinter:
         name_width = LABEL_WIDTH - len(ITEM_INDENT)
         for item in items:
             name = f"{item.quantity}x {item.product_name}"[:name_width]
-            amount = _inr(item.total_price)
-            buf += line(f"{ITEM_INDENT}{name:<{name_width}}{amount:>{AMOUNT_WIDTH}}")
+            # Routed through kv() - same label/amount column math as the
+            # totals below it, so the two sections can never drift apart.
+            buf += kv(f"{ITEM_INDENT}{name}", item.total_price)
 
         buf += line("-" * LINE_WIDTH)
         buf += kv("Subtotal", order.subtotal)
