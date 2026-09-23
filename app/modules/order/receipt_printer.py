@@ -4,7 +4,7 @@ Generates the final customer bill/receipt for a completed order
 """
 from typing import List
 
-from app.core.database import utc_now_naive
+from app.core.timezone import get_ist_now
 from app.modules.order.model import Order, OrderItem
 from app.modules.restaurant.model import Restaurant
 
@@ -68,7 +68,7 @@ class ReceiptPrinter:
             lines.append(f"Table: {order.table_id}")
         if order.guest_name:
             lines.append(f"Customer: {order.guest_name}")
-        lines.append(f"Date: {utc_now_naive().strftime('%Y-%m-%d %I:%M %p')}")
+        lines.append(f"Date: {get_ist_now().strftime('%Y-%m-%d %I:%M %p')}")
         lines.append("-" * width)
 
         lines.append(f"{'Item':<20}{'Qty':>4}{'Amount':>18}")
@@ -131,7 +131,7 @@ class ReceiptPrinter:
             amount = _pretax(item.total_price, item.tax_amount)
             item_rows += f"""
         <div class="item-row">
-            <div class="item-name">{item.quantity}x {item.product_name}</div>
+            <div class="item-name">{item.product_name} x{item.quantity}</div>
             <div class="item-amount">{_inr(amount)}</div>
         </div>
         {note_html}"""
@@ -174,7 +174,7 @@ class ReceiptPrinter:
     <div class="section">
         <div class="row"><span>Order #</span><span>{order.order_number}</span></div>
         <div class="row"><span>Type</span><span>{order.order_type.upper()}</span></div>
-        <div class="row"><span>Date</span><span>{utc_now_naive().strftime('%Y-%m-%d %I:%M %p')}</span></div>
+        <div class="row"><span>Date</span><span>{get_ist_now().strftime('%Y-%m-%d %I:%M %p')}</span></div>
     </div>
     <div class="section">
         {item_rows}
@@ -242,12 +242,15 @@ class ReceiptPrinter:
 
         buf += ALIGN_LEFT
         buf += line(f"Order #: {order.order_number}")
-        buf += line(f"Date: {utc_now_naive().strftime('%Y-%m-%d %I:%M %p')}")
+        buf += line(f"Date: {get_ist_now().strftime('%Y-%m-%d %I:%M %p')}")
         buf += line("-" * LINE_WIDTH)
 
         name_width = LABEL_WIDTH - len(ITEM_INDENT)
         for item in items:
-            name = f"{item.quantity}x {item.product_name}"[:name_width]
+            # Truncate the product name only, so the " xN" quantity suffix
+            # is never cut off for long names.
+            qty_suffix = f" x{item.quantity}"
+            name = item.product_name[: name_width - len(qty_suffix)] + qty_suffix
             amount = _pretax(item.total_price, item.tax_amount)
             # Routed through kv() - same label/amount column math as the
             # totals below it, so the two sections can never drift apart.
