@@ -36,6 +36,7 @@ from app.modules.payment_gateway.route import router as payment_gateway_router
 from app.modules.table_session.route import router as table_session_router
 from app.modules.table_session.qr_order_route import router as qr_table_order_router
 from app.modules.billing.route import router as billing_router
+from app.modules.printer.route import router as printer_router
 from app.routes.upload import router as upload_router
 from app.services.storage_service import init_storage
 from app.modules.restaurant.seed import run_seed_subscription_plans
@@ -222,6 +223,7 @@ app.include_router(payment_gateway_router, prefix="/api/v1")
 app.include_router(table_session_router, prefix="/api/v1")
 app.include_router(qr_table_order_router, prefix="/api/v1")
 app.include_router(billing_router, prefix="/api/v1")
+app.include_router(printer_router, prefix="/api/v1")
 app.include_router(upload_router)
 
 

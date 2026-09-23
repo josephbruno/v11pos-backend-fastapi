@@ -16,6 +16,7 @@ from app.modules.customer.model import Customer
 from app.modules.table.model import Table
 from app.modules.order.model import Order, OrderItem
 from app.modules.kds.model import KitchenStation, KitchenDisplay, KitchenDisplayItem
+from app.modules.printer.model import ReceiptPrinter
 from app.modules.inventory.model import (
     Ingredient,
     Recipe,

@@ -1,6 +1,8 @@
+import base64
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Body, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse, PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
 from app.core.query_datetime import (
@@ -29,7 +31,9 @@ from app.modules.order.model import PaymentMethod
 from app.modules.payment.service import OrderPaymentService
 from app.modules.order.model import OrderType, OrderStatus, PaymentStatus
 from app.modules.order.service import OrderService
+from app.modules.order.receipt_printer import ReceiptPrinter
 from app.modules.order.websocket import order_ws_manager, normalize_restaurant_id
+from app.modules.restaurant.service import RestaurantService
 from app.modules.user.model import User
 
 
@@ -596,4 +600,97 @@ async def cancel_order(
     return success_response(
         data=order_response,
         message="Order cancelled successfully"
+    )
+
+
+# Billing receipt printing endpoints
+async def _load_receipt_context(db: AsyncSession, order_id: str):
+    order = await OrderService.get_order_by_id(db, order_id, include_items=False)
+    if not order:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found"
+        )
+    items = await OrderService.get_order_items(db, order_id)
+    restaurant = await RestaurantService.get_restaurant_by_id(db, order.restaurant_id)
+    if not restaurant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Restaurant not found"
+        )
+    return order, items, restaurant
+
+
+@router.get("/{order_id}/receipt/text", response_class=PlainTextResponse)
+async def get_receipt_text(
+    order_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Generate the billing receipt in plain text format (thermal printer)"""
+    order, items, restaurant = await _load_receipt_context(db, order_id)
+    receipt_text = ReceiptPrinter.generate_receipt_text(order, items, restaurant)
+    return PlainTextResponse(content=receipt_text, media_type="text/plain")
+
+
+@router.get("/{order_id}/receipt/html", response_class=HTMLResponse)
+async def get_receipt_html(
+    order_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Generate the billing receipt in HTML format (browser window.print() fallback)"""
+    order, items, restaurant = await _load_receipt_context(db, order_id)
+    receipt_html = ReceiptPrinter.generate_receipt_html(order, items, restaurant)
+    return HTMLResponse(content=receipt_html)
+
+
+@router.post("/{order_id}/receipt/print", response_model=dict)
+async def print_receipt(
+    order_id: str,
+    format: str = Query("html", description="Format: text, html, or escpos"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generate the billing receipt and mark it as printed.
+
+    - **format**: text (thermal printer), html (browser print fallback), or
+      escpos (base64-encoded raw ESC/POS bytes for the local print-bridge)
+
+    Delivery to the physical printer is the frontend's responsibility: it
+    fetches the active printer config from /printers/restaurant/{id}/active/bill
+    and either POSTs the escpos content directly to that printer's bridge
+    URL, or opens the html content and calls window.print() as a fallback.
+    """
+    order, items, restaurant = await _load_receipt_context(db, order_id)
+
+    if format == "text":
+        content = ReceiptPrinter.generate_receipt_text(order, items, restaurant)
+        content_type = "text/plain"
+    elif format == "html":
+        content = ReceiptPrinter.generate_receipt_html(order, items, restaurant)
+        content_type = "text/html"
+    elif format == "escpos":
+        raw = ReceiptPrinter.generate_receipt_escpos(order, items, restaurant)
+        content = base64.b64encode(raw).decode("ascii")
+        content_type = "application/octet-stream;base64"
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid format. Choose: text, html, or escpos"
+        )
+
+    await OrderService.mark_receipt_printed(db, order_id)
+
+    return success_response(
+        data={
+            "order_id": order_id,
+            "order_number": order.order_number,
+            "format": format,
+            "content_type": content_type,
+            "printed_at": ist_now_iso(),
+            "content": content
+        },
+        message=f"Receipt generated successfully in {format} format"
     )

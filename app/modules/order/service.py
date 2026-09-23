@@ -198,6 +198,17 @@ class OrderService:
         return list(result.scalars().all())
     
     @staticmethod
+    async def mark_receipt_printed(db: AsyncSession, order_id: str) -> Optional[Order]:
+        """Flag an order's billing receipt as printed"""
+        order = await OrderService.get_order_by_id(db, order_id, include_items=False)
+        if not order:
+            return None
+        order.receipt_printed = True
+        await db.commit()
+        await db.refresh(order)
+        return order
+
+    @staticmethod
     async def get_order_by_number(db: AsyncSession, order_number: str) -> Optional[Order]:
         """Get order by order number"""
         result = await db.execute(
